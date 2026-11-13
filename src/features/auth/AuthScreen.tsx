@@ -11,8 +11,10 @@ import { Notice } from "@/components/common/States"
 import {
   requestPasswordReset,
   signIn,
+  signOut,
   signUpResident,
 } from "@/services/authService"
+import { fetchProfile } from "@/services/profileService"
 import {
   submitAnonymousReport,
   trackRequest,
@@ -26,6 +28,34 @@ import { STATUS_LABELS } from "@/types"
 import type { Barangay, ServiceCategory, ViewId } from "@/types"
 
 type AuthMode = "login" | "register" | "anonymous" | "track"
+type AccountType = "resident" | "worker"
+
+function RoleSelect({
+  value,
+  onChange,
+}: {
+  value: AccountType
+  onChange: (value: AccountType) => void
+}) {
+  return (
+    <Field label="I am a" required>
+      <div className="role-toggle" role="radiogroup" aria-label="Account type">
+        {(["resident", "worker"] as const).map((r) => (
+          <button
+            type="button"
+            key={r}
+            role="radio"
+            aria-checked={value === r}
+            className={value === r ? "active" : ""}
+            onClick={() => onChange(r)}
+          >
+            {r === "resident" ? "Resident" : "Worker"}
+          </button>
+        ))}
+      </div>
+    </Field>
+  )
+}
 
 const titles: Record<AuthMode, [string, string]> = {
   login: ["Welcome back", "Sign in to view and manage your requests."],
@@ -99,7 +129,7 @@ export function AuthScreen({
             <div className="notice warning">
               <Icon name="alert" />
               <div>
-                <strong>Session ended</strong>
+                <strong>{sessionNotice.includes("approval") ? "Account pending approval" : "Session ended"}</strong>
                 <p>{sessionNotice}</p>
               </div>
             </div>
@@ -228,6 +258,7 @@ function LoginForm({ navigate }: { navigate: (view: ViewId) => void }) {
   const [busy, setBusy] = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const [resetBusy, setResetBusy] = useState(false)
+  const [accountType, setAccountType] = useState<AccountType>("resident")
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -235,7 +266,20 @@ function LoginForm({ navigate }: { navigate: (view: ViewId) => void }) {
     setBusy(true)
     try {
       // Session is picked up by AuthProvider; the app redirects automatically.
-      await signIn(email, password)
+      const { user } = await signIn(email, password)
+      // The chosen account type must match the role stored on the account.
+      const found = await fetchProfile(user.id)
+      if (found && found.status !== "pending") {
+        const isWorker = found.role === "worker" || found.role === "admin"
+        if ((accountType === "worker") !== isWorker) {
+          await signOut()
+          setError(
+            accountType === "worker"
+              ? "This account is not a worker account. Choose Resident to sign in."
+              : "This is a worker account. Choose Worker to sign in.",
+          )
+        }
+      }
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -269,6 +313,7 @@ function LoginForm({ navigate }: { navigate: (view: ViewId) => void }) {
         </Notice>
       )}
       <form onSubmit={submit} className="auth-form">
+        <RoleSelect value={accountType} onChange={setAccountType} />
         <Field label="Email address" required>
           <TextInput
             type="email"
@@ -329,6 +374,7 @@ function RegisterForm({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirmPending, setConfirmPending] = useState(false)
+  const [accountType, setAccountType] = useState<AccountType>("resident")
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -341,8 +387,13 @@ function RegisterForm({
         password,
         mobile,
         address,
+        barangayId,
+        accountType,
       })
       if (result.needsEmailConfirmation) {
+        setConfirmPending(true)
+      } else if (accountType === "worker") {
+        await signOut()
         setConfirmPending(true)
       } else {
         await refreshProfile()
@@ -358,9 +409,19 @@ function RegisterForm({
     return (
       <div className="confirm-panel">
         <Notice tone="success">
-          <strong>Almost done!</strong> We sent a confirmation link to{" "}
-          <b>{email}</b>. Confirm your email to activate your account, then
-          sign in.
+          {accountType === "worker" ? (
+            <>
+              <strong>Request sent!</strong> Your worker account for <b>{email}</b>{" "}
+              is waiting for administrator approval. You can sign in once it is
+              approved.
+            </>
+          ) : (
+            <>
+              <strong>Almost done!</strong> We sent a confirmation link to{" "}
+              <b>{email}</b>. Confirm your email to activate your account, then
+              sign in.
+            </>
+          )}
         </Notice>
         <Button className="full-width" onClick={() => navigate("login")}>
           Go to sign in
@@ -372,6 +433,7 @@ function RegisterForm({
   return (
     <>
       <form onSubmit={submit} className="auth-form">
+        <RoleSelect value={accountType} onChange={setAccountType} />
         <div className="form-grid">
           <Field label="Full name" required>
             <TextInput

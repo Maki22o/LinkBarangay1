@@ -34,6 +34,7 @@ export function UsersPage({ setView }: { setView: (view: ViewId) => void }) {
   const [editing, setEditing] = useState<Profile | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [suspendTarget, setSuspendTarget] = useState<Profile | null>(null)
+  const [viewing, setViewing] = useState<Profile | null>(null)
 
   const list = useAsync(
     () => listUsers({ search, role: roleFilter, status: statusFilter, page, pageSize: PAGE_SIZE }),
@@ -127,6 +128,7 @@ export function UsersPage({ setView }: { setView: (view: ViewId) => void }) {
             <option value="active">Active</option>
             <option value="suspended">Suspended</option>
             <option value="inactive">Inactive</option>
+            <option value="pending">Pending approval</option>
           </select>
         </div>
 
@@ -164,7 +166,7 @@ export function UsersPage({ setView }: { setView: (view: ViewId) => void }) {
                           <small>{user.email}</small>
                         </div>
                       </td>
-                      <td>{profileRoleLabel(user)}</td>
+                      <td>{user.status === "pending" ? "Worker (requested)" : profileRoleLabel(user)}</td>
                       <td>
                         {user.barangay?.name
                           ? `Brgy ${user.barangay.name}`
@@ -175,22 +177,30 @@ export function UsersPage({ setView }: { setView: (view: ViewId) => void }) {
                       </td>
                       <td>{formatDate(user.created_at)}</td>
                       <td>
-                        <div className="row-actions">
-                          <button
-                            className="icon-button"
-                            title="Edit user"
-                            onClick={() => setEditing(user)}
-                          >
-                            <Icon name="settings" size={14} />
-                          </button>
-                          <button
-                            className="icon-button"
-                            title={user.status === "active" ? "Suspend" : "Reactivate"}
-                            onClick={() => setSuspendTarget(user)}
-                          >
-                            <Icon name={user.status === "active" ? "close" : "check"} size={14} />
-                          </button>
-                        </div>
+                        {user.role === "resident" && user.status !== "pending" ? (
+                          <div className="row-actions">
+                            <button className="icon-button" title="View details" onClick={() => setViewing(user)}>
+                              <Icon name="eye" size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="row-actions">
+                            <button
+                              className="icon-button"
+                              title="Edit user"
+                              onClick={() => setEditing(user)}
+                            >
+                              <Icon name="settings" size={14} />
+                            </button>
+                            <button
+                              className="icon-button"
+                              title={user.status === "active" ? "Suspend" : user.status === "pending" ? "Review request" : "Reactivate"}
+                              onClick={() => (user.status === "pending" ? setEditing(user) : setSuspendTarget(user))}
+                            >
+                              <Icon name={user.status === "active" ? "close" : "check"} size={14} />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -220,6 +230,33 @@ export function UsersPage({ setView }: { setView: (view: ViewId) => void }) {
             list.refresh()
           }}
         />
+      )}
+      {viewing && (
+        <Modal title={viewing.full_name || viewing.email} onClose={() => setViewing(null)} wide>
+          <Notice tone="info">View only. Residents manage their own information.</Notice>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px 18px" }}>
+            {[
+              ["Full name", viewing.full_name],
+              ["Email", viewing.email],
+              ["Mobile number", viewing.mobile],
+              ["Barangay", viewing.barangay?.name],
+              ["Status", viewing.status],
+              ["Registered", formatDate(viewing.created_at)],
+            ].map(([label, value]) => (
+              <div key={label} style={{ minWidth: 0 }}>
+                <small style={{ display: "block", color: "#8b96a7", fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>{label}</small>
+                <strong style={{ display: "block", marginTop: 3, fontSize: 13, color: "#22314a", overflowWrap: "anywhere", textTransform: label === "Status" ? "capitalize" : "none" }}>{value || "—"}</strong>
+              </div>
+            ))}
+            <div style={{ gridColumn: "1 / -1" }}>
+              <small style={{ display: "block", color: "#8b96a7", fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>Home address</small>
+              <strong style={{ display: "block", marginTop: 3, fontSize: 13, color: "#22314a" }}>{viewing.address || "—"}</strong>
+            </div>
+          </div>
+          <div className="modal-actions">
+            <Button variant="secondary" onClick={() => setViewing(null)}>Close</Button>
+          </div>
+        </Modal>
       )}
       {editing && (
         <EditUserModal
@@ -415,9 +452,13 @@ function EditUserModal({
   const { profile } = useAuth()
   const barangays = useAsync(() => listBarangays(), [])
   const departments = useAsync(() => listDepartments(), [])
-  const [role, setRole] = useState<Role>(user.role)
-  const [workerFunction, setWorkerFunction] = useState<WorkerFunction | null>(user.worker_function)
-  const [status, setStatus] = useState<AccountStatus>(user.status)
+  // A pending account is a worker sign-up request: start from the approved state.
+  const isPending = user.status === "pending"
+  const [role, setRole] = useState<Role>(isPending ? "worker" : user.role)
+  const [workerFunction, setWorkerFunction] = useState<WorkerFunction | null>(
+    isPending ? "officer" : user.worker_function,
+  )
+  const [status, setStatus] = useState<AccountStatus>(isPending ? "active" : user.status)
   const [barangayId, setBarangayId] = useState(user.barangay_id ?? "")
   const [departmentId, setDepartmentId] = useState(user.department_id ?? "")
   const [busy, setBusy] = useState(false)
@@ -506,6 +547,7 @@ function EditUserModal({
             { value: "active", label: "Active" },
             { value: "suspended", label: "Suspended" },
             { value: "inactive", label: "Inactive" },
+            ...(isPending ? [{ value: "pending", label: "Pending approval" }] : []),
           ]}
         />
       </Field>

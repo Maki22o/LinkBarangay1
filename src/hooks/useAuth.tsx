@@ -63,9 +63,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null)
       await authSignOut()
       setSessionNotice(
-        loaded.status === "suspended"
-          ? "This account has been suspended. Please contact the barangay office."
-          : "This account is inactive. Please contact the barangay office.",
+        loaded.status === "pending"
+          ? "Your worker account is waiting for administrator approval."
+          : loaded.status === "suspended"
+            ? "This account has been suspended. Please contact the barangay office."
+            : "This account is inactive. Please contact the barangay office.",
       )
       return
     }

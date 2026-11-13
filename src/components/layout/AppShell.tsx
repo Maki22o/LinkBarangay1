@@ -201,7 +201,7 @@ export function AppShell({
       {confirmLogout && (
         <ConfirmDialog
           title="Sign out"
-          message="This ends your Supabase session on this device."
+          message="Are you sure you want to sign out?"
           confirmLabel="Sign out"
           danger
           onCancel={() => setConfirmLogout(false)}

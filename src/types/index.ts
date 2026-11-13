@@ -6,7 +6,7 @@
 export type Role = "resident" | "worker" | "admin"
 export type WorkerFunction = "secretary" | "officer" | "captain" | "dispatcher" | "field"
 
-export type AccountStatus = "active" | "suspended" | "inactive"
+export type AccountStatus = "active" | "suspended" | "inactive" | "pending"
 
 export const ROLE_LABELS: Record<Role, string> = {
   resident: "Resident",

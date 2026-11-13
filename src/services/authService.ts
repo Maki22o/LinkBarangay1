@@ -10,6 +10,9 @@ export interface SignUpInput {
   password: string
   mobile: string
   address: string
+  barangayId?: string
+  /** "worker" creates a pending account that an administrator must approve. */
+  accountType?: "resident" | "worker"
 }
 
 /** Maps raw Supabase auth errors to resident-friendly messages. */
@@ -40,9 +43,10 @@ export async function signIn(email: string, password: string) {
 }
 
 /**
- * Public registration creates RESIDENT accounts only. The database trigger
- * (migration 0001) provisions the lb_profiles row with role='resident' —
- * the role is never taken from client input.
+ * Public registration creates RESIDENT profiles only. The database trigger
+ * provisions the lb_profiles row with role='resident' — the role is never
+ * taken from client input. A worker request becomes status='pending' until
+ * an administrator approves it (migration 0013).
  * Returns whether the session is immediately available (false when the
  * project requires email confirmation).
  */
@@ -55,6 +59,8 @@ export async function signUpResident(input: SignUpInput) {
         full_name: input.fullName.trim(),
         mobile: input.mobile.trim(),
         address: input.address.trim(),
+        ...(input.barangayId ? { barangay_id: input.barangayId } : {}),
+        ...(input.accountType === "worker" ? { requested_role: "worker" } : {}),
       },
       emailRedirectTo: window.location.origin,
     },
