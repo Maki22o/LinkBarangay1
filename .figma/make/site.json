@@ -1,0 +1,11 @@
+{
+  "title": "LinkBarangay — Community Service Portal",
+  "description": "LinkBarangay connects residents with local barangay services and community information, making it easier to access support and stay informed.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
