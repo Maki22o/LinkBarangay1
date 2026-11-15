@@ -108,7 +108,7 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
         is_custom: isCustom,
         latitude: mapLocation.latitude,
         longitude: mapLocation.longitude,
-        location_details: { barangay: mapLocation.barangay, city: mapLocation.city, province: mapLocation.province },
+        location_details: { barangay: mapLocation.barangay, city: mapLocation.city, province: mapLocation.province, map_url: mapLocation.map_url },
       }, evidencePath)
       setCreated(request)
     } catch (err) {

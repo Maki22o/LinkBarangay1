@@ -130,6 +130,7 @@ export function RequestDetailPage({
   const canComment = hasPermission(profile, "requests.comment")
   const canPrioritize = hasPermission(profile, "requests.prioritize")
   const staffBarangay = role === "worker" && profile?.worker_function === "barangay_staff"
+  const mapUrl = request.location_details?.map_url
 
   const active = (status: RequestStatus) => request.status === status
 
@@ -386,11 +387,7 @@ export function RequestDetailPage({
 
           <section className="panel location-panel">
             <h2>Location</h2>
-            <div className="mini-map">
-              <span>
-                <Icon name="pin" size={14} />
-              </span>
-            </div>
+            {mapUrl ? <iframe className="mini-map" title="Reported location map" src={`https://www.google.com/maps?q=${encodeURIComponent(request.location)}&output=embed`} loading="lazy" referrerPolicy="no-referrer-when-downgrade" /> : <div className="mini-map"><span><Icon name="pin" size={14} /></span></div>}
             <strong>{request.location || "No location provided"}</strong>
             <p>{request.barangay?.name ?? ""}</p>
             {request.location_latitude != null && request.location_longitude != null && (
@@ -399,6 +396,7 @@ export function RequestDetailPage({
                 <a className="location-directions" href={`https://www.google.com/maps/dir/?api=1&destination=${request.location_latitude},${request.location_longitude}`} target="_blank" rel="noreferrer">Open directions <Icon name="arrow" size={13} /></a>
               </>
             )}
+            {mapUrl && <a className="location-directions" href={mapUrl} target="_blank" rel="noreferrer">Open in Google Maps <Icon name="arrow" size={13} /></a>}
           </section>
 
           {(isOwner || (role === "worker" && profile?.worker_function === "dispatcher") || role === "admin" || staffBarangay) && (

@@ -131,8 +131,8 @@ export interface SubmitInput {
   category_id: string | null
   location: string
   is_custom: boolean
-  latitude: number
-  longitude: number
+  latitude: number | null
+  longitude: number | null
   location_details: Record<string, string>
   barangay_id?: string | null
 }

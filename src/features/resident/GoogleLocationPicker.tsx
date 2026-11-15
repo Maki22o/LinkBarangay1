@@ -6,11 +6,12 @@ declare global { interface Window { google?: any } }
 
 export interface RequestLocation {
   address: string
-  latitude: number
-  longitude: number
+  latitude: number | null
+  longitude: number | null
   barangay: string
   city: string
   province: string
+  map_url: string
 }
 
 let mapsLoader: Promise<void> | null = null
@@ -49,9 +50,10 @@ export function GoogleLocationPicker({ value, onChange }: { value: RequestLocati
     void loadMaps(key).then(() => {
       if (cancelled || !window.google) return
       const google = window.google
-      const initial = value ? { lat: value.latitude, lng: value.longitude } : { lat: 14.5995, lng: 120.9842 }
-      const map = new google.maps.Map(mapNode.current, { center: initial, zoom: value ? 17 : 12, mapTypeControl: false, streetViewControl: false })
-      const marker = new google.maps.Marker({ map, position: value ? initial : null, draggable: true })
+      const hasCoordinates = value?.latitude != null && value?.longitude != null
+      const initial = hasCoordinates ? { lat: value!.latitude!, lng: value!.longitude! } : { lat: 14.5995, lng: 120.9842 }
+      const map = new google.maps.Map(mapNode.current, { center: initial, zoom: hasCoordinates ? 17 : 12, mapTypeControl: false, streetViewControl: false })
+      const marker = new google.maps.Marker({ map, position: hasCoordinates ? initial : null, draggable: true })
       mapRef.current = map; markerRef.current = marker; geocoderRef.current = new google.maps.Geocoder()
       const applyPlace = (place: any, fallbackPosition?: any) => {
         const location = place?.geometry?.location ?? fallbackPosition
@@ -61,7 +63,7 @@ export function GoogleLocationPicker({ value, onChange }: { value: RequestLocati
         const address = place?.formatted_address ?? searchNode.current?.value ?? "Selected map location"
         const parts = place?.address_components ?? []
         marker.setPosition({ lat: latitude, lng: longitude }); map.panTo({ lat: latitude, lng: longitude }); map.setZoom(17)
-        onChange({ address, latitude, longitude, barangay: component(parts, "sublocality_level_1") || component(parts, "sublocality"), city: component(parts, "locality") || component(parts, "administrative_area_level_2"), province: component(parts, "administrative_area_level_1") })
+        onChange({ address, latitude, longitude, barangay: component(parts, "sublocality_level_1") || component(parts, "sublocality"), city: component(parts, "locality") || component(parts, "administrative_area_level_2"), province: component(parts, "administrative_area_level_1"), map_url: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` })
       }
       const reverse = (position: any) => geocoderRef.current.geocode({ location: position }).then((result: any) => {
         const found = result.results?.[0]
@@ -77,7 +79,7 @@ export function GoogleLocationPicker({ value, onChange }: { value: RequestLocati
     return () => { cancelled = true }
   }, [key])
 
-  if (!key) return <Notice tone="warning">Google Maps is not configured. Add a browser-restricted <code>VITE_GOOGLE_MAPS_API_KEY</code> to <code>.env.local</code>, then restart the app. The API key must enable Maps JavaScript, Places, and Geocoding APIs.</Notice>
+  if (!key) return <GoogleMapsLinkPicker value={value} onChange={onChange} />
 
   return <div className="map-picker">
     <label className="map-search-input"><Icon name="search" size={16} /><input ref={searchNode} placeholder="Search for a complete address or location..." aria-label="Search location" /></label>
@@ -87,7 +89,27 @@ export function GoogleLocationPicker({ value, onChange }: { value: RequestLocati
     {value && <div className="location-summary">
       <strong>Selected location</strong><span>{value.address}</span>
       <small>Barangay: {value.barangay || "—"} · City/Municipality: {value.city || "—"} · Province: {value.province || "—"}</small>
-      <small>Latitude: {value.latitude.toFixed(6)} · Longitude: {value.longitude.toFixed(6)}</small>
+      {value.latitude != null && value.longitude != null && <small>Latitude: {value.latitude.toFixed(6)} · Longitude: {value.longitude.toFixed(6)}</small>}
     </div>}
+  </div>
+}
+
+function GoogleMapsLinkPicker({ value, onChange }: { value: RequestLocation | null; onChange: (value: RequestLocation | null) => void }) {
+  const [address, setAddress] = useState(value?.address ?? "")
+  const [mapUrl, setMapUrl] = useState(value?.map_url ?? "")
+  const update = (nextAddress: string, nextUrl: string) => {
+    setAddress(nextAddress); setMapUrl(nextUrl)
+    if (!nextAddress.trim() || !nextUrl.trim()) { onChange(null); return }
+    try { const url = new URL(nextUrl); if (!/google\.[^/]+$/.test(url.hostname) && !url.hostname.endsWith("goo.gl")) throw new Error("not-google") } catch { onChange(null); return }
+    const coordinateMatch = nextUrl.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/) ?? nextUrl.match(/[?&]q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/)
+    onChange({ address: nextAddress.trim(), latitude: coordinateMatch ? Number(coordinateMatch[1]) : null, longitude: coordinateMatch ? Number(coordinateMatch[2]) : null, barangay: "", city: "", province: "", map_url: nextUrl.trim() })
+  }
+  const preview = address ? `https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed` : ""
+  return <div className="map-picker">
+    <Notice tone="info">Use a Google Maps share link instead of the interactive map. Paste the exact address and link so personnel can open the location.</Notice>
+    <label className="map-search-input"><Icon name="pin" size={16} /><input value={address} onChange={(event) => update(event.target.value, mapUrl)} placeholder="Complete address of the concern" aria-label="Complete address" /></label>
+    <label className="map-search-input"><Icon name="search" size={16} /><input value={mapUrl} onChange={(event) => update(address, event.target.value)} placeholder="Paste Google Maps share link" aria-label="Google Maps link" /></label>
+    {preview && <iframe className="google-map" title="Google Maps location preview" src={preview} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />}
+    {value && <div className="location-summary"><strong>Saved map location</strong><span>{value.address}</span><a href={value.map_url} target="_blank" rel="noreferrer">Open in Google Maps <Icon name="arrow" size={13} /></a></div>}
   </div>
 }
