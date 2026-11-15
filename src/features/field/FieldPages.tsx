@@ -11,10 +11,12 @@ import { Modal } from "@/components/common/Modal"
 import { Field, TextArea } from "@/components/forms/fields"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
+import { assignmentStateLabel, isActionableAssignment } from "@/lib/assignmentState"
 import {
   acceptAssignment,
   completeJob,
   declineAssignment,
+  getAssignment,
   listMyAssignments,
   updateJobProgress,
 } from "@/services/assignmentService"
@@ -42,8 +44,8 @@ export function FieldDashboard({
   if (jobs.error) return <ErrorState message={jobs.error} onRetry={jobs.refresh} />
 
   const all = jobs.data ?? []
-  const pending = all.filter((j) => j.status === "pending")
-  const activeJobs = all.filter((j) => j.status === "in_progress" || j.status === "accepted")
+  const pending = all.filter((j) => j.status === "pending" && isActionableAssignment(j, profile?.department_id))
+  const activeJobs = all.filter((j) => ["in_progress", "accepted"].includes(j.status) && isActionableAssignment(j, profile?.department_id))
   const completed = all.filter((j) => j.status === "completed")
   const declined = all.filter((j) => j.status === "declined")
 
@@ -92,7 +94,7 @@ export function FieldDashboard({
                     <span>
                       <Status status={job.request?.status ?? "assigned"} />
                     </span>
-                    <h3>{job.request?.title ?? "Untitled request"}</h3>
+                    <h3>{job.request?.title ?? "Previous assignment"}</h3>
                     <p>
                       <Icon name="pin" size={12} /> {job.request?.location || "No location"}
                     </p>
@@ -121,7 +123,7 @@ export function FieldDashboard({
               {completed.slice(0, 5).map((job) => (
                 <button key={job.id} onClick={() => openJob(job.id)}>
                   <div>
-                    <strong>{job.request?.title ?? "Untitled"}</strong>
+                    <strong>{job.request?.title ?? "Previous assignment"}</strong>
                     <small>
                       Completed {job.completed_at ? formatDateTime(job.completed_at) : "—"}
                     </small>
@@ -157,7 +159,7 @@ export function JobsPage({
 
   const all = jobs.data ?? []
   const rows = all.filter((job) => {
-    if (filter === "open") return ["pending", "accepted", "in_progress"].includes(job.status)
+    if (filter === "open") return isActionableAssignment(job, profile?.department_id)
     if (filter === "completed") return job.status === "completed"
     return true
   })
@@ -180,7 +182,7 @@ export function JobsPage({
               onClick={() => setFilter(tab)}
             >
               {tab === "open" ? "Open jobs" : tab === "completed" ? "Completed" : "All"}
-              <b>{all.filter((j) => (tab === "all" ? true : filterMatch(j, tab))).length}</b>
+              <b>{all.filter((j) => (tab === "all" ? true : filterMatch(j, tab, profile?.department_id))).length}</b>
             </button>
           ))}
         </div>
@@ -197,7 +199,7 @@ export function JobsPage({
                   <span>
                     <Status status={job.request?.status ?? "assigned"} />
                   </span>
-                  <h3>{job.request?.title ?? "Untitled request"}</h3>
+                  <h3>{job.request?.title ?? "Previous assignment"}</h3>
                   <p>
                     <Icon name="pin" size={12} /> {job.request?.location || "No location"}
                     {job.request?.category?.name ? ` · ${job.request.category.name}` : ""}
@@ -206,7 +208,7 @@ export function JobsPage({
                 <div className="job-time">
                   <small>DEADLINE</small>
                   <strong>{job.deadline_at ? formatDateTime(job.deadline_at) : "—"}</strong>
-                  <span>{job.status.replaceAll("_", " ")}</span>
+                  <span>{assignmentStateLabel(job)}</span>
                 </div>
               </button>
             ))}
@@ -217,8 +219,8 @@ export function JobsPage({
   )
 }
 
-function filterMatch(job: Assignment, tab: "open" | "completed" | "all") {
-  if (tab === "open") return ["pending", "accepted", "in_progress"].includes(job.status)
+function filterMatch(job: Assignment, tab: "open" | "completed" | "all", departmentId?: string | null) {
+  if (tab === "open") return isActionableAssignment(job, departmentId)
   if (tab === "completed") return job.status === "completed"
   return true
 }
@@ -233,8 +235,8 @@ export function JobDetailPage({
 }) {
   const { profile } = useAuth()
   const jobs = useAsync(
-    () => (profile ? listMyAssignments(profile.id) : Promise.resolve([])),
-    [profile?.id],
+    () => (profile ? getAssignment(assignmentId) : Promise.resolve(null)),
+    [profile?.id, assignmentId],
   )
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -263,7 +265,7 @@ export function JobDetailPage({
 
   if (jobs.loading) return <LoadingState label="Loading job…" />
   if (jobs.error) return <ErrorState message={jobs.error} onRetry={jobs.refresh} />
-  const job = (jobs.data ?? []).find((j) => j.id === assignmentId)
+  const job = jobs.data?.assigned_to === profile?.id ? jobs.data : null
   if (!job) {
     return (
       <EmptyState
@@ -276,6 +278,7 @@ export function JobDetailPage({
   }
 
   const request = job.request
+  const actionable = isActionableAssignment(job, profile?.department_id)
   const run = async (label: string, fn: () => Promise<unknown>) => {
     setBusy(true)
     setError(null)
@@ -301,7 +304,7 @@ export function JobDetailPage({
           <div className="detail-title">
             <div>
               <span className="page-kicker">{formatRef(request?.reference)}</span>
-              <h1>{request?.title ?? "Untitled"}</h1>
+              <h1>{request?.title ?? "Previous assignment"}</h1>
               <p>
                 {request?.category?.name ?? "Uncategorized"} ·{" "}
                 {request?.location || "No location"} · Deadline{" "}
@@ -311,12 +314,13 @@ export function JobDetailPage({
           </div>
         </div>
         <div className="detail-top-side">
-          <Status status={job.status === "in_progress" ? "in_progress" : (request?.status ?? "assigned")} />
+          <Status status={actionable ? (job.status === "in_progress" ? "in_progress" : (request?.status ?? "assigned")) : assignmentStateLabel(job)} />
         </div>
       </div>
 
       {notice && <Notice tone="success">{notice}</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
+      {!actionable && <Notice tone="info">This assignment is kept for your history. Its actions are unavailable because the job was reassigned, completed, or its scope changed.</Notice>}
 
       <div className="detail-layout">
         <main>
@@ -366,7 +370,7 @@ export function JobDetailPage({
           <section className="panel action-panel">
             <h2>Job actions</h2>
             <div className="action-buttons">
-              {job.status === "pending" && (
+              {actionable && job.status === "pending" && (
                 <>
                   <Button
                     icon="check"
@@ -385,7 +389,7 @@ export function JobDetailPage({
                   </Button>
                 </>
               )}
-              {["accepted", "in_progress"].includes(job.status) && (
+              {actionable && ["accepted", "in_progress"].includes(job.status) && (
                 <>
                   <Button icon="route" disabled={busy} onClick={() => setModal("progress")}>
                     Add progress note
@@ -405,8 +409,8 @@ export function JobDetailPage({
 
           <section className="panel attachments-panel">
             <h2>Before / after photos</h2>
-            <JobPhotos requestId={job.request_id} />
-            {["accepted", "in_progress"].includes(job.status) && (
+            {request && <JobPhotos requestId={job.request_id} />}
+            {actionable && ["accepted", "in_progress"].includes(job.status) && (
               <div className="upload-row">
                 <label className="upload-zone compact">
                   <Icon name="upload" size={16} />
@@ -464,7 +468,7 @@ export function JobDetailPage({
         </aside>
       </div>
 
-      {modal === "decline" && (
+      {actionable && modal === "decline" && (
         <RemarksModal
           title="Decline assignment"
           intro="The dispatcher is notified immediately so the job can be reassigned."
@@ -477,7 +481,7 @@ export function JobDetailPage({
           }
         />
       )}
-      {modal === "progress" && (
+      {actionable && modal === "progress" && (
         <RemarksModal
           title="Add progress note"
           intro="Notes are visible to the dispatcher and recorded on the request."
@@ -489,7 +493,7 @@ export function JobDetailPage({
           }
         />
       )}
-      {modal === "complete" && (
+      {actionable && modal === "complete" && (
         <RemarksModal
           title="Submit completion report"
           intro="This marks the work ready for barangay inspection."

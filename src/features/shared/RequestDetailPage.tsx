@@ -14,6 +14,8 @@ import { Field, Select, TextArea } from "@/components/forms/fields"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
 import { hasPermission } from "@/permissions/permissions"
+import { toLocalDateTimeInput } from "@/lib/dateTime"
+import { assignmentStateLabel } from "@/lib/assignmentState"
 import {
   addComment,
   assignField,
@@ -396,7 +398,7 @@ export function RequestDetailPage({
                     <p>
                       <strong>{assignment.assignee?.full_name ?? "Field personnel"}</strong>
                       <small>
-                        {assignment.status.replaceAll("_", " ")}
+                        {assignmentStateLabel(assignment)}
                         {assignment.deadline_at
                           ? ` · due ${formatDateTime(assignment.deadline_at)}`
                           : ""}
@@ -793,7 +795,7 @@ function AssignFieldModal({
   const [userId, setUserId] = useState("")
   const [scheduleAt, setScheduleAt] = useState("")
   const [deadlineAt, setDeadlineAt] = useState(
-    dueAt ? new Date(dueAt).toISOString().slice(0, 16) : "",
+    toLocalDateTimeInput(dueAt),
   )
   const [notes, setNotes] = useState("")
 

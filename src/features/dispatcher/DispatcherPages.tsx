@@ -9,6 +9,7 @@ import { Button, MetricCard, Status, formatRef, formatDateTime } from "@/compone
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/States"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
+import { assignmentStateLabel, isActionableAssignment } from "@/lib/assignmentState"
 import { listRequests } from "@/services/requestService"
 import { listDepartmentAssignments } from "@/services/assignmentService"
 import { listFieldPersonnel } from "@/services/profileService"
@@ -133,7 +134,7 @@ export function AssignmentsPage({
 
   const all = assignments.data ?? []
   const rows = all.filter((job) => {
-    if (filter === "active") return ["pending", "accepted", "in_progress"].includes(job.status)
+    if (filter === "active") return isActionableAssignment(job)
     if (filter === "completed") return job.status === "completed"
     if (filter === "declined") return job.status === "declined"
     return true
@@ -157,7 +158,7 @@ export function AssignmentsPage({
                 {
                   all.filter((job) =>
                     tab === "active"
-                      ? ["pending", "accepted", "in_progress"].includes(job.status)
+                      ? isActionableAssignment(job)
                       : tab === "completed"
                         ? job.status === "completed"
                         : tab === "declined"
@@ -179,13 +180,13 @@ export function AssignmentsPage({
                 <div className="job-main">
                   <span>
                     <em className={`priority ${job.status === "declined" ? "high" : "normal"}`}>
-                      {job.status.replaceAll("_", " ")}
+                      {assignmentStateLabel(job)}
                     </em>
                     {job.status === "declined" && job.decline_reason && (
                       <small style={{ marginLeft: 8 }}>{job.decline_reason}</small>
                     )}
                   </span>
-                  <h3>{job.request?.title ?? "Untitled"}</h3>
+                  <h3>{job.request?.title ?? "Previous assignment"}</h3>
                   <p>
                     <Icon name="user" size={12} /> {job.assignee?.full_name ?? "Unknown"} ·{" "}
                     <Icon name="clock" size={12} />{" "}
@@ -219,7 +220,7 @@ export function PersonnelPage() {
 
   const openByUser = new Map<string, number>()
   for (const job of assignments.data ?? []) {
-    if (["pending", "accepted", "in_progress"].includes(job.status)) {
+    if (isActionableAssignment(job)) {
       openByUser.set(job.assigned_to, (openByUser.get(job.assigned_to) ?? 0) + 1)
     }
   }
@@ -296,7 +297,7 @@ export function WorkloadPage() {
 
   const jobs = assignments.data ?? []
   const overdueRequests = requests.data?.requests ?? []
-  const activeJobs = jobs.filter((j) => ["pending", "accepted", "in_progress"].includes(j.status))
+  const activeJobs = jobs.filter((j) => isActionableAssignment(j))
   const completedJobs = jobs.filter((j) => j.status === "completed")
   const declinedJobs = jobs.filter((j) => j.status === "declined")
 
@@ -319,7 +320,7 @@ export function WorkloadPage() {
       <div className="metrics-grid">
         <MetricCard label="Active jobs" value={activeJobs.length} icon="briefcase" />
         <MetricCard label="Completed jobs" value={completedJobs.length} tone="green" icon="check" />
-        <MetricCard label="Declined (reassign needed)" value={declinedJobs.length} tone="red" icon="alert" />
+        <MetricCard label="Declined jobs" value={declinedJobs.length} tone="red" icon="alert" />
         <MetricCard label="Overdue requests" value={overdueRequests.length} tone="amber" icon="clock" />
       </div>
 

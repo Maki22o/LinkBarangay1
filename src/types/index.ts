@@ -166,6 +166,11 @@ export interface Notification {
   title: string
   message: string
   request_id: string | null
+  /** Optional on historical rows written before notification metadata was added. */
+  event_type?: string | null
+  destination_view?: string | null
+  entity_id?: string | null
+  event_key?: string | null
   is_read: boolean
   read_at: string | null
   created_at: string
@@ -181,6 +186,8 @@ export type AssignmentStatus =
 
 export interface Assignment {
   id: string
+  /** Derived from authorized assignment history; never written to Supabase. */
+  current_assignment_id?: string | null
   request_id: string
   assigned_to: string
   assigned_by: string | null

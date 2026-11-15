@@ -14,6 +14,7 @@ import { ConfirmDialog } from "@/components/common/Modal"
 import { useAuth } from "@/hooks/useAuth"
 import { useNotifications } from "@/hooks/useNotifications"
 import { navForProfile, scopeLabelFor } from "@/permissions/permissions"
+import { notificationBadge } from "@/lib/notificationNavigation"
 import { profileRoleLabel } from "@/types"
 import type { ViewId } from "@/types"
 
@@ -37,6 +38,8 @@ export function AppShell({
 
   if (!profile) return null
 
+  const badge = notificationBadge(unreadCount)
+  const unreadLabel = `Notifications (${unreadCount} unread)`
   const nav = navForProfile(profile)
   const scopeText =
     profile.barangay?.name
@@ -66,6 +69,7 @@ export function AppShell({
                   : ""
               }
               key={item.label}
+              aria-label={item.view === "notifications" ? unreadLabel : undefined}
               onClick={() => {
                 setView(item.view)
                 setMobileOpen(false)
@@ -73,7 +77,7 @@ export function AppShell({
             >
               <Icon name={item.icon} />
               <span>{item.label}</span>
-              {item.label === "Notifications" && unreadCount > 0 && <b>{unreadCount}</b>}
+              {item.view === "notifications" && badge && <b aria-hidden="true">{badge}</b>}
             </button>
           ))}
         </nav>
@@ -160,13 +164,14 @@ export function AppShell({
                     <Icon name="user" size={15} /> My profile
                   </button>
                   <button
+                    aria-label={unreadLabel}
                     onClick={() => {
                       setView("notifications")
                       setMenuOpen(false)
                     }}
                   >
                     <Icon name="bell" size={15} /> Notifications
-                    {unreadCount > 0 && <b>{unreadCount}</b>}
+                    {badge && <b aria-hidden="true">{badge}</b>}
                   </button>
                   <button className="danger" onClick={() => setConfirmLogout(true)}>
                     <Icon name="logout" size={15} /> Sign out
@@ -177,10 +182,10 @@ export function AppShell({
             <button
               className="notification-button"
               onClick={() => setView("notifications")}
-              aria-label={`Notifications (${unreadCount} unread)`}
+              aria-label={unreadLabel}
             >
               <Icon name="bell" />
-              {unreadCount > 0 && <i>{unreadCount > 99 ? "99+" : unreadCount}</i>}
+              {badge && <i aria-hidden="true">{badge}</i>}
             </button>
           </div>
         </header>

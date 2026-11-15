@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test": "node --test tests/*.test.mjs",
+    "test:db": "bash scripts/test-notifications-db.sh",
+    "test:realtime": "bash scripts/test-notifications-realtime.sh",
     "preview": "vite preview",
     "format": "oxfmt"
   },

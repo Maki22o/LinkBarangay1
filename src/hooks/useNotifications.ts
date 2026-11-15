@@ -1,82 +1,76 @@
-// ============================================================================
-// LinkBarangay — notifications hook (real rows from Supabase, realtime +
-// polling fallback for the unread badge)
-// ============================================================================
-
-import { useCallback, useEffect, useRef, useState } from "react"
-import {
-  getUnreadCount,
-  listNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
-  subscribeToNotifications,
-} from "@/services/notificationService"
+// One shared store, channel and fallback timer for the authenticated account.
+import { createContext, createElement, useContext, useEffect, useMemo, useSyncExternalStore } from "react"
+import type { ReactNode } from "react"
 import { useAuth } from "@/hooks/useAuth"
-import type { Notification } from "@/types"
+import {
+  getUnreadCount, listNotifications, markNotificationsRead, subscribeToNotifications,
+} from "@/services/notificationService"
+import { NotificationStore } from "@/lib/notificationStore"
+import { startNotificationSync } from "@/lib/notificationSync"
+import type { NotificationState } from "@/lib/notificationStore"
 
-export function useNotifications() {
-  const { profile } = useAuth()
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const userId = profile?.id ?? null
-  const userIdRef = useRef<string | null>(null)
+type NotificationContextValue = NotificationState & {
+  refresh: () => Promise<void>
+  loadMore: () => Promise<void>
+  markRead: (id: string) => Promise<void>
+  markAllRead: () => Promise<void>
+}
 
-  const refresh = useCallback(async () => {
-    if (!userIdRef.current) return
-    try {
-      const [items, unread] = await Promise.all([
-        listNotifications(userIdRef.current),
-        getUnreadCount(userIdRef.current),
-      ])
-      setNotifications(items)
-      setUnreadCount(unread)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load notifications.")
-    }
-  }, [])
+const NotificationContext = createContext<NotificationContextValue | null>(null)
+
+export function NotificationsProvider({ children }: { children: ReactNode }) {
+  const { session, profile } = useAuth()
+  // The session/profile match prevents briefly exposing the previous user's
+  // history while authentication is loading a newly signed-in account.
+  const userId = profile?.status === "active" && session?.user.id === profile.id ? profile.id : null
+  const store = useMemo(() => new NotificationStore(userId, {
+    list: listNotifications, count: getUnreadCount, markRead: markNotificationsRead,
+  }), [userId])
+  const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
 
   useEffect(() => {
-    userIdRef.current = userId
-    if (!userId) {
-      setNotifications([])
-      setUnreadCount(0)
-      setLoading(false)
-      return
-    }
-
-    setLoading(true)
-    void refresh().finally(() => setLoading(false))
-
-    // Realtime updates when the project has realtime enabled…
-    const unsubscribe = subscribeToNotifications(userId, () => {
-      void refresh()
+    store.start()
+    if (!userId) return () => store.stop()
+    const cleanupSync = startNotificationSync({
+      refresh: store.refresh,
+      subscribe: (onChange, onConnection) => subscribeToNotifications(
+        userId, onChange, (status) => onConnection(status === "connected"),
+      ),
+      environment: {
+        now: Date.now,
+        visible: () => document.visibilityState === "visible",
+        online: () => navigator.onLine,
+        delay: (milliseconds, callback) => {
+          const timer = window.setTimeout(callback, milliseconds)
+          return () => window.clearTimeout(timer)
+        },
+        repeat: (milliseconds, callback) => {
+          const timer = window.setInterval(callback, milliseconds)
+          return () => window.clearInterval(timer)
+        },
+        listen: (event, callback) => {
+          const target = event === "visibility" ? document : window
+          const name = event === "visibility" ? "visibilitychange" : event
+          target.addEventListener(name, callback)
+          return () => target.removeEventListener(name, callback)
+        },
+      },
     })
-    // …plus a polling fallback (also covers token refresh edge cases)
-    const timer = window.setInterval(refresh, 30_000)
-
     return () => {
-      unsubscribe()
-      window.clearInterval(timer)
+      store.stop()
+      cleanupSync()
     }
-  }, [userId, refresh])
+  }, [store, userId])
 
-  const markRead = useCallback(
-    async (id: string) => {
-      if (!userIdRef.current) return
-      await markNotificationRead(id, userIdRef.current)
-      void refresh()
-    },
-    [refresh],
-  )
+  const value = useMemo(() => ({ ...state,
+    refresh: store.refresh, loadMore: store.loadMore,
+    markRead: store.markRead, markAllRead: store.markAllRead,
+  }), [state, store])
+  return createElement(NotificationContext.Provider, { value }, children)
+}
 
-  const markAllRead = useCallback(async () => {
-    if (!userIdRef.current) return
-    await markAllNotificationsRead(userIdRef.current)
-    void refresh()
-  }, [refresh])
-
-  return { notifications, unreadCount, loading, error, refresh, markRead, markAllRead }
+export function useNotifications(): NotificationContextValue {
+  const context = useContext(NotificationContext)
+  if (!context) throw new Error("useNotifications must be used inside <NotificationsProvider>")
+  return context
 }

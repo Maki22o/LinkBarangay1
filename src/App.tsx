@@ -8,6 +8,7 @@
 // ============================================================================
 
 import { useState } from "react"
+import { NotificationsProvider } from "@/hooks/useNotifications"
 import { AuthProvider, useAuth } from "@/hooks/useAuth"
 import { AppShell } from "@/components/layout/AppShell"
 import { LoadingState, ErrorState } from "@/components/common/States"
@@ -68,22 +69,37 @@ const PUBLIC_VIEWS: ReadonlySet<string> = new Set([
 export default function App() {
   return (
     <AuthProvider>
-      <Root />
+      <NotificationsProvider>
+        <Root />
+      </NotificationsProvider>
     </AuthProvider>
   )
 }
 
 function Root() {
-  const { initializing, session, profile, authLinkFlow, authLinkError, clearAuthLink } = useAuth()
+  const { initializing, session, profile, sessionNotice, refreshProfile, signOut, authLinkFlow, authLinkError, clearAuthLink } = useAuth()
   const [view, setView] = useState<ViewId>("dashboard")
   const [globalRequestSearch, setGlobalRequestSearch] = useState("")
   const [requestId, setRequestId] = useState<string | null>(null)
   const [assignmentId, setAssignmentId] = useState<string | null>(null)
 
-  if (initializing || (session && !profile)) {
+  if (initializing || (session && !profile && !sessionNotice)) {
     return (
       <div className="boot-screen">
         <LoadingState label="Loading LinkBarangay…" />
+      </div>
+    )
+  }
+
+  if (session && !profile && sessionNotice) {
+    return (
+      <div className="boot-screen">
+        <div className="panel">
+          <ErrorState message={sessionNotice} onRetry={() => {
+            void refreshProfile().catch((err: unknown) => console.error("Account refresh failed", err))
+          }} />
+          <button className="link-button" onClick={() => { void signOut() }}>Sign out</button>
+        </div>
       </div>
     )
   }
@@ -194,7 +210,7 @@ function Root() {
       case "notifications":
         return (
           <NotificationsErrorBoundary setView={setView}>
-            <NotificationsPage setView={setView} openRequest={openRequest} />
+            <NotificationsPage key={profile.id} setView={setView} openRequest={openRequest} openJob={openJob} />
           </NotificationsErrorBoundary>
         )
       case "profile":
