@@ -19,7 +19,7 @@ function toProfile(row: Record<string, unknown>): Profile {
 export async function fetchProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from("lb_profiles")
-    .select("*")
+    .select(PROFILE_SELECT)
     .eq("id", userId)
     .maybeSingle()
   if (error) throw new Error(error.message)
@@ -86,11 +86,17 @@ export interface AdminUpdateInput {
 }
 
 export async function adminUpdateUser(userId: string, patch: AdminUpdateInput): Promise<void> {
-  const { error } = await supabase.from("lb_profiles").update(patch).eq("id", userId)
+  const { data, error } = await supabase
+    .from("lb_profiles")
+    .update(patch)
+    .eq("id", userId)
+    .select("id")
+    .maybeSingle()
   if (error) {
     // Surface the DB trigger/policy message (e.g. self-elevation blocked)
     throw new Error(error.message)
   }
+  if (!data) throw new Error("No account was updated. Refresh User Management and try again.")
 }
 
 // ---------------------------------------------------------------------------

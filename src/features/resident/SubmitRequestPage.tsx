@@ -58,6 +58,10 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
 
   const submit = async () => {
     if (!profile) return
+    if (!profile.barangay_id) {
+      setError("Your account has no barangay assigned yet. Ask an administrator to assign your barangay before submitting a request.")
+      return
+    }
     const cleanTitle = title.trim()
     const cleanDescription = description.trim()
     const cleanLocation = location.trim()
@@ -122,6 +126,12 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
           </div>
         ))}
       </div>
+
+      {profile && !profile.barangay_id && (
+        <Notice tone="warning">
+          Your account needs an assigned barangay before you can submit a request. Contact an administrator; this ensures the correct front desk receives it.
+        </Notice>
+      )}
 
       <div className="form-panel">
         <div className="form-section">
@@ -246,7 +256,7 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
               Continue
             </Button>
           ) : (
-            <Button icon="check" disabled={busy} onClick={() => void submit()}>
+            <Button icon="check" disabled={busy || !profile?.barangay_id} onClick={() => void submit()}>
               {busy ? "Submitting…" : "Submit request"}
             </Button>
           )}

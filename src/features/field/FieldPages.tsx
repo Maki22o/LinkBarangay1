@@ -11,6 +11,7 @@ import { Modal } from "@/components/common/Modal"
 import { Field, TextArea } from "@/components/forms/fields"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
+import { useRequestRealtimeRefresh } from "@/hooks/useRequestRealtime"
 import { assignmentStateLabel, isActionableAssignment } from "@/lib/assignmentState"
 import {
   acceptAssignment,
@@ -25,6 +26,7 @@ import {
   listAttachments,
   getAttachmentUrl,
 } from "@/services/requestService"
+import { requestRealtimeFilter } from "@/services/requestService"
 import type { Assignment, ViewId } from "@/types"
 
 export function FieldDashboard({
@@ -37,8 +39,13 @@ export function FieldDashboard({
   const { profile } = useAuth()
   const jobs = useAsync(
     () => (profile ? listMyAssignments(profile.id) : Promise.resolve([])),
-    [profile?.id],
+    [profile?.id, profile?.department_id],
   )
+  const requestFilter = profile ? requestRealtimeFilter(profile) : undefined
+  useRequestRealtimeRefresh(jobs.refresh, {
+    enabled: Boolean(profile && requestFilter),
+    filter: requestFilter,
+  })
 
   if (jobs.loading) return <LoadingState label="Loading your day…" />
   if (jobs.error) return <ErrorState message={jobs.error} onRetry={jobs.refresh} />
@@ -151,8 +158,13 @@ export function JobsPage({
   const [filter, setFilter] = useState<"open" | "completed" | "all">("open")
   const jobs = useAsync(
     () => (profile ? listMyAssignments(profile.id) : Promise.resolve([])),
-    [profile?.id],
+    [profile?.id, profile?.department_id],
   )
+  const requestFilter = profile ? requestRealtimeFilter(profile) : undefined
+  useRequestRealtimeRefresh(jobs.refresh, {
+    enabled: Boolean(profile && requestFilter),
+    filter: requestFilter,
+  })
 
   if (jobs.loading) return <LoadingState label="Loading jobs…" />
   if (jobs.error) return <ErrorState message={jobs.error} onRetry={jobs.refresh} />

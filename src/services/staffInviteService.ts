@@ -59,7 +59,7 @@ export async function createStaffAccount(input: StaffInviteInput): Promise<Staff
         mobile: input.mobile ?? "",
         address: input.address ?? "",
         workerFunction: input.role === "worker" ? input.workerFunction : null,
-        barangayId: input.role === "worker" ? input.barangayId ?? null : null,
+        barangayId: input.barangayId ?? null,
         departmentId: input.role === "worker" ? input.departmentId ?? null : null,
       }),
     })

@@ -177,30 +177,25 @@ export function UsersPage({ setView }: { setView: (view: ViewId) => void }) {
                       </td>
                       <td>{formatDate(user.created_at)}</td>
                       <td>
-                        {user.role === "resident" && user.status !== "pending" ? (
-                          <div className="row-actions">
-                            <button className="icon-button" title="View details" onClick={() => setViewing(user)}>
-                              <Icon name="eye" size={14} />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="row-actions">
-                            <button
-                              className="icon-button"
-                              title="Edit user"
-                              onClick={() => setEditing(user)}
-                            >
-                              <Icon name="settings" size={14} />
-                            </button>
-                            <button
-                              className="icon-button"
-                              title={user.status === "active" ? "Suspend" : user.status === "pending" ? "Review request" : "Reactivate"}
-                              onClick={() => (user.status === "pending" ? setEditing(user) : setSuspendTarget(user))}
-                            >
-                              <Icon name={user.status === "active" ? "close" : "check"} size={14} />
-                            </button>
-                          </div>
-                        )}
+                        <div className="row-actions">
+                          <button className="icon-button" title="View details" onClick={() => setViewing(user)}>
+                            <Icon name="eye" size={14} />
+                          </button>
+                          <button
+                            className="icon-button"
+                            title={user.role === "resident" && !user.barangay_id ? "Assign barangay" : "Edit user"}
+                            onClick={() => setEditing(user)}
+                          >
+                            <Icon name="settings" size={14} />
+                          </button>
+                          <button
+                            className="icon-button"
+                            title={user.status === "active" ? "Suspend" : user.status === "pending" ? "Review request" : "Reactivate"}
+                            onClick={() => (user.status === "pending" ? setEditing(user) : setSuspendTarget(user))}
+                          >
+                            <Icon name={user.status === "active" ? "close" : "check"} size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -304,6 +299,10 @@ function InviteStaffModal({ onClose, onDone }: { onClose: () => void; onDone: ()
   const [created, setCreated] = useState<{ email: string; temporaryPassword?: string } | null>(null)
 
   const submit = async () => {
+    if (role === "resident" && !barangayId) {
+      setError("Select a barangay for this resident so requests can reach the right front desk.")
+      return
+    }
     const barangayScoped = role === "worker" && ["secretary", "officer", "captain"].includes(workerFunction)
     const departmentScoped = role === "worker" && ["dispatcher", "field"].includes(workerFunction)
     if (barangayScoped && !barangayId) {
@@ -324,7 +323,7 @@ function InviteStaffModal({ onClose, onDone }: { onClose: () => void; onDone: ()
         fullName,
         mobile,
         workerFunction: role === "worker" ? workerFunction : null,
-        barangayId: role === "worker" ? barangayId || null : null,
+        barangayId: barangayId || null,
         departmentId: role === "worker" ? departmentId || null : null,
       })
       setCreated({ email: result.email, temporaryPassword: result.temporaryPassword })
@@ -403,6 +402,16 @@ function InviteStaffModal({ onClose, onDone }: { onClose: () => void; onDone: ()
         <Field label="Mobile (optional)">
           <TextInput value={mobile} onChange={setMobile} />
         </Field>
+        {role === "resident" && <Field label="Barangay" required hint="Required to route resident requests to the right front desk">
+          <Select
+            value={barangayId}
+            onChange={setBarangayId}
+            options={[
+              { value: "", label: "Select barangay" },
+              ...(barangays.data ?? []).filter((b) => b.is_active).map((b) => ({ value: b.id, label: b.name })),
+            ]}
+          />
+        </Field>}
         {role === "worker" && <Field label="Barangay" hint="Required for front desk, officer, and supervisor workers">
           <Select
             value={barangayId}
@@ -470,6 +479,14 @@ function EditUserModal({
 
   const save = async () => {
     setError(null)
+    if (role === "resident" && status === "active" && !barangayId) {
+      setError("Assign a barangay to an active resident before saving.")
+      return
+    }
+    if (role === "resident" && status === "active" && !barangays.data?.some((item) => item.id === barangayId && item.is_active)) {
+      setError("Choose an active barangay for this resident.")
+      return
+    }
     if (role === "worker" && !workerFunction) {
       setError("Select a worker function.")
       return
@@ -557,8 +574,11 @@ function EditUserModal({
           onChange={setBarangayId}
           disabled={isSelf}
           options={[
-            { value: "", label: "None" },
-            ...(barangays.data ?? []).map((b) => ({ value: b.id, label: b.name })),
+            { value: "", label: role === "resident" && status === "active" ? "Select an active barangay" : "None" },
+            ...(barangays.data ?? []).filter((b) => b.is_active || b.id === user.barangay_id).map((b) => ({
+              value: b.id,
+              label: b.is_active ? b.name : `${b.name} (inactive)`,
+            })),
           ]}
         />
       </Field>

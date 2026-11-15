@@ -96,6 +96,9 @@ Deno.serve(async (req: Request) => {
   if (role !== "resident" && role !== "worker") {
     return json({ error: "Role must be resident or worker" }, 400);
   }
+  if (role === "resident" && !barangayId) {
+    return json({ error: "Select a barangay for this resident so requests can reach the right front desk" }, 400);
+  }
   if (role === "worker" && !VALID_WORKER_FUNCTIONS.includes(workerFunction)) {
     return json({ error: `Worker function must be one of: ${VALID_WORKER_FUNCTIONS.join(", ")}` }, 400);
   }
@@ -106,8 +109,10 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Select a department for this worker function" }, 400);
   }
 
-  const scopedBarangayId = role === "worker" ? barangayId : null;
-  const scopedDepartmentId = role === "worker" ? departmentId : null;
+  const barangayWorker = role === "worker" && ["secretary", "officer", "captain"].includes(workerFunction);
+  const departmentWorker = role === "worker" && ["dispatcher", "field"].includes(workerFunction);
+  const scopedBarangayId = role === "resident" || barangayWorker ? barangayId : null;
+  const scopedDepartmentId = departmentWorker ? departmentId : null;
   const { data: barangay } = scopedBarangayId
     ? await admin.from("lb_barangays").select("id").eq("id", scopedBarangayId).eq("is_active", true).single()
     : { data: null };
@@ -124,7 +129,13 @@ Deno.serve(async (req: Request) => {
 
   if (mode === "invite") {
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-      data: { full_name: fullName, mobile, address },
+      data: {
+        full_name: fullName,
+        mobile,
+        address,
+        barangay_id: scopedBarangayId,
+        ...(role === "worker" ? { requested_role: "worker" } : {}),
+      },
       redirectTo: APP_ORIGIN,
     });
     if (error || !data.user) return json({ error: error?.message ?? "Invite failed" }, 400);
@@ -135,7 +146,13 @@ Deno.serve(async (req: Request) => {
       email,
       password: temporaryPassword,
       email_confirm: true,
-      user_metadata: { full_name: fullName, mobile, address },
+      user_metadata: {
+        full_name: fullName,
+        mobile,
+        address,
+        barangay_id: scopedBarangayId,
+        ...(role === "worker" ? { requested_role: "worker" } : {}),
+      },
     });
     if (error || !data.user) return json({ error: error?.message ?? "User creation failed" }, 400);
     userId = data.user.id;

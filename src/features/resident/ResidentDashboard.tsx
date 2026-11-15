@@ -7,7 +7,8 @@ import { Button, MetricCard, Status, formatRef, formatDate } from "@/components/
 import { LoadingState, ErrorState, EmptyState } from "@/components/common/States"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
-import { listRequests } from "@/services/requestService"
+import { useRequestRealtimeRefresh } from "@/hooks/useRequestRealtime"
+import { listRequests, requestRealtimeFilter } from "@/services/requestService"
 import type { ViewId } from "@/types"
 
 export function ResidentDashboard({
@@ -27,6 +28,8 @@ export function ResidentDashboard({
         : Promise.resolve({ requests: [], total: 0, page: 1, pageSize: 100 }),
     [profile?.id],
   )
+  const requestFilter = profile ? requestRealtimeFilter(profile) : undefined
+  useRequestRealtimeRefresh(summary.refresh, { enabled: Boolean(profile), filter: requestFilter })
 
   const requests = summary.data?.requests ?? []
   const active = requests.filter(

@@ -9,7 +9,8 @@ import { Status, Priority, formatRef, formatDate } from "@/components/common/ui"
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/States"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
-import { listRequests } from "@/services/requestService"
+import { useRequestRealtimeRefresh } from "@/hooks/useRequestRealtime"
+import { listRequests, requestRealtimeFilter } from "@/services/requestService"
 import { listCategories } from "@/services/configService"
 import { STATUS_LABELS } from "@/types"
 import type { RequestStatus, ViewId } from "@/types"
@@ -55,8 +56,13 @@ export function RequestsPage({
             pageSize: PAGE_SIZE,
           })
         : Promise.resolve({ requests: [], total: 0, page: 1, pageSize: PAGE_SIZE }),
-    [profile?.id, search, status, page],
+    [profile?.id, profile?.role, profile?.worker_function, profile?.barangay_id, profile?.department_id, search, status, page],
   )
+  const requestFilter = profile ? requestRealtimeFilter(profile) : undefined
+  useRequestRealtimeRefresh(refresh, {
+    enabled: Boolean(profile && (profile.role === "admin" || requestFilter)),
+    filter: requestFilter,
+  })
 
   const categories = useAsync(() => listCategories(), [])
   const total = data?.total ?? 0

@@ -17,7 +17,7 @@ export function ResidentRecordsPage() {
   const [term, setTerm] = useState("")
   const residents = useAsync(
     () => listBarangayResidents(profile?.barangay_id ?? null, term),
-    [profile?.id, term],
+    [profile?.id, profile?.barangay_id, term],
   )
 
   return (

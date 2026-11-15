@@ -37,6 +37,20 @@ export interface RequestListFilters {
   pageSize?: number
 }
 
+/** A server-side Realtime filter matching each authenticated request scope. */
+export function requestRealtimeFilter(profile: Profile): string | undefined {
+  if (profile.role === "resident") return `submitted_by=eq.${profile.id}`
+  if (profile.role === "admin") return undefined
+  if (profile.worker_function === "field") return `assigned_to=eq.${profile.id}`
+  if (["secretary", "officer", "captain"].includes(profile.worker_function ?? "")) {
+    return profile.barangay_id ? `barangay_id=eq.${profile.barangay_id}` : undefined
+  }
+  if (profile.worker_function === "dispatcher") {
+    return profile.department_id ? `department_id=eq.${profile.department_id}` : undefined
+  }
+  return undefined
+}
+
 export async function listRequests(profile: Profile, filters: RequestListFilters = {}) {
   const page = Math.max(1, filters.page ?? 1)
   const pageSize = Math.min(100, filters.pageSize ?? 20)

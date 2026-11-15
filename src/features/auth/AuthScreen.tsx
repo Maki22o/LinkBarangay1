@@ -379,6 +379,10 @@ function RegisterForm({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setError(null)
+    if (!barangayId) {
+      setError("Select your barangay so your requests can reach the right front desk.")
+      return
+    }
     setBusy(true)
     try {
       const result = await signUpResident({
@@ -465,7 +469,7 @@ function RegisterForm({
               onChange={setBarangayId}
               options={[
                 { value: "", label: "Select barangay" },
-                ...barangays.map((b) => ({ value: b.id, label: b.name })),
+                ...barangays.filter((b) => b.is_active).map((b) => ({ value: b.id, label: b.name })),
               ]}
             />
           </Field>

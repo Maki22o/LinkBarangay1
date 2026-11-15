@@ -9,7 +9,8 @@ import { Button, MetricCard, Status, formatRef, formatDate } from "@/components/
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/States"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
-import { listRequests } from "@/services/requestService"
+import { useRequestRealtimeRefresh } from "@/hooks/useRequestRealtime"
+import { listRequests, requestRealtimeFilter } from "@/services/requestService"
 import { listBarangayStaff, listFieldPersonnel } from "@/services/profileService"
 import { listAppointments } from "@/services/appointmentService"
 import { WORKER_FUNCTION_LABELS } from "@/types"
@@ -60,19 +61,24 @@ export function StaffDashboard({
   const requests = useAsync(
     () =>
       profile ? listRequests(profile, { pageSize: 200 }) : Promise.resolve({ requests: [], total: 0, page: 1, pageSize: 200 }),
-    [profile?.id],
+    [profile?.id, profile?.role, profile?.worker_function, profile?.barangay_id, profile?.department_id],
   )
+  const requestFilter = profile ? requestRealtimeFilter(profile) : undefined
+  useRequestRealtimeRefresh(requests.refresh, {
+    enabled: Boolean(profile && requestFilter),
+    filter: requestFilter,
+  })
   const staff = useAsync(
     () =>
       role === "secretary" || role === "officer" || role === "captain"
         ? listBarangayStaff(profile?.barangay_id ?? null)
         : listFieldPersonnel(profile?.department_id ?? null),
-    [profile?.id],
+    [profile?.id, profile?.role, profile?.worker_function, profile?.barangay_id, profile?.department_id],
   )
   const appointments = useAsync(
     () =>
       role === "secretary" ? listAppointments(profile?.barangay_id ?? null) : Promise.resolve([]),
-    [profile?.id],
+    [profile?.id, profile?.role, profile?.worker_function, profile?.barangay_id, profile?.department_id],
   )
 
   if (requests.loading) return <LoadingState label="Loading your workspace…" />

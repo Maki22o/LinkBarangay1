@@ -105,7 +105,7 @@ export function ProfilePage() {
               value={
                 profile.barangay?.name ??
                 profile.department?.name ??
-                (profile.role === "resident" ? "Not assigned yet" : "—")
+                (profile.role === "admin" ? "—" : "Not assigned yet")
               }
               onChange={() => undefined}
               disabled

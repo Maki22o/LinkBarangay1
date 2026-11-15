@@ -9,8 +9,9 @@ import { Button, MetricCard, Status, formatRef, formatDateTime } from "@/compone
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/States"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
+import { useRequestRealtimeRefresh } from "@/hooks/useRequestRealtime"
 import { assignmentStateLabel, isActionableAssignment } from "@/lib/assignmentState"
-import { listRequests } from "@/services/requestService"
+import { listRequests, requestRealtimeFilter } from "@/services/requestService"
 import { listDepartmentAssignments } from "@/services/assignmentService"
 import { listFieldPersonnel } from "@/services/profileService"
 import type { ViewId } from "@/types"
@@ -28,8 +29,13 @@ export function DeptQueuePage({
       profile
         ? listRequests(profile, { pageSize: 100 })
         : Promise.resolve({ requests: [], total: 0, page: 1, pageSize: 100 }),
-    [profile?.id],
+    [profile?.id, profile?.role, profile?.worker_function, profile?.barangay_id, profile?.department_id],
   )
+  const requestFilter = profile ? requestRealtimeFilter(profile) : undefined
+  useRequestRealtimeRefresh(list.refresh, {
+    enabled: Boolean(profile && requestFilter),
+    filter: requestFilter,
+  })
 
   if (list.loading) return <LoadingState label="Loading department queue…" />
   if (list.error) return <ErrorState message={list.error} onRetry={list.refresh} />
@@ -124,7 +130,7 @@ export function AssignmentsPage({
   const { profile } = useAuth()
   const assignments = useAsync(
     () => listDepartmentAssignments(profile?.department_id ?? null),
-    [profile?.id],
+    [profile?.id, profile?.department_id],
   )
   const [filter, setFilter] = useState<"active" | "completed" | "declined" | "all">("active")
 
@@ -209,10 +215,10 @@ export function AssignmentsPage({
 // ---------------------------------------------------------------------------
 export function PersonnelPage() {
   const { profile } = useAuth()
-  const staff = useAsync(() => listFieldPersonnel(profile?.department_id ?? null), [profile?.id])
+  const staff = useAsync(() => listFieldPersonnel(profile?.department_id ?? null), [profile?.id, profile?.department_id])
   const assignments = useAsync(
     () => listDepartmentAssignments(profile?.department_id ?? null),
-    [profile?.id],
+    [profile?.id, profile?.department_id],
   )
 
   if (staff.loading || assignments.loading) return <LoadingState />
@@ -281,14 +287,14 @@ export function WorkloadPage() {
   const { profile } = useAuth()
   const assignments = useAsync(
     () => listDepartmentAssignments(profile?.department_id ?? null),
-    [profile?.id],
+    [profile?.id, profile?.department_id],
   )
   const requests = useAsync(
     () =>
       profile
         ? listRequests(profile, { pageSize: 100, overdue: true })
         : Promise.resolve({ requests: [], total: 0, page: 1, pageSize: 100 }),
-    [profile?.id],
+    [profile?.id, profile?.role, profile?.worker_function, profile?.barangay_id, profile?.department_id],
   )
 
   if (assignments.loading || requests.loading) return <LoadingState />

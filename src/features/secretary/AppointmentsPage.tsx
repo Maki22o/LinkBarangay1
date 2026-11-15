@@ -22,7 +22,7 @@ export function AppointmentsPage({ setView }: { setView: (view: ViewId) => void 
   const { profile } = useAuth()
   const list = useAsync(
     () => listAppointments(profile?.barangay_id ?? null),
-    [profile?.id],
+    [profile?.id, profile?.barangay_id],
   )
   const [creating, setCreating] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
