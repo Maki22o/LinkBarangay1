@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react"
 import { Icon } from "@/components/common/Icon"
 import { Button, Logo, Status } from "@/components/common/ui"
+import { Modal } from "@/components/common/Modal"
 import { Field, TextInput, TextArea, Select } from "@/components/forms/fields"
 import { Notice } from "@/components/common/States"
 import {
@@ -423,33 +424,6 @@ function RegisterForm({
     }
   }
 
-  if (confirmPending) {
-    return (
-      <div className="confirm-panel">
-        <Notice tone="success">
-          {accountType === "worker" ? (
-            <>
-              <strong>Request sent!</strong> Your worker account for <b>{email}</b>{" "}
-              is waiting for administrator approval. You can sign in once it is
-              approved.
-            </>
-          ) : needsEmailConfirm ? (
-            <>
-              <strong>Email confirmation needed.</strong> Confirm the email, sign in, then upload your ID under My Profile before an administrator can approve your account.
-            </>
-          ) : (
-            <>
-              <strong>Verification submitted.</strong> Your account is pending address and ID review. You can submit requests after an administrator approves it.
-            </>
-          )}
-        </Notice>
-        <Button className="full-width" onClick={() => navigate("login")}>
-          Go to sign in
-        </Button>
-      </div>
-    )
-  }
-
   return (
     <>
       <form onSubmit={submit} className="auth-form">
@@ -534,6 +508,31 @@ function RegisterForm({
         Already have an account?{" "}
         <button onClick={() => navigate("login")}>Sign in</button>
       </p>
+      {confirmPending && (
+        <Modal title="Account submitted for approval" onClose={() => navigate("login")}>
+          <div className="confirm-panel">
+            <Notice tone="success">
+              {accountType === "worker" ? (
+                <>
+                  <strong>Worker account submitted.</strong> Your account for <b>{email}</b>{" "}
+                  is waiting for administrator approval. You can sign in after it is approved.
+                </>
+              ) : needsEmailConfirm ? (
+                <>
+                  <strong>Confirm your email first.</strong> We sent a confirmation link to <b>{email}</b>. After confirming, sign in and upload your ID from My Profile so an administrator can review your resident account.
+                </>
+              ) : (
+                <>
+                  <strong>Resident verification submitted.</strong> Your ID and address are waiting for administrator approval. You can submit service requests after approval.
+                </>
+              )}
+            </Notice>
+            <div className="modal-actions">
+              <Button onClick={() => navigate("login")}>Go to sign in</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </>
   )
 }
