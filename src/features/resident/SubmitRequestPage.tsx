@@ -7,6 +7,7 @@ import { Icon } from "@/components/common/Icon"
 import { Button } from "@/components/common/ui"
 import { Notice } from "@/components/common/States"
 import { Field, TextArea, TextInput } from "@/components/forms/fields"
+import { GoogleLocationPicker, type RequestLocation } from "@/features/resident/GoogleLocationPicker"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
 import { listCategories } from "@/services/configService"
@@ -18,15 +19,22 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
   const categories = useAsync(() => listCategories(), [])
   const [step, setStep] = useState(1)
   const [categoryId, setCategoryId] = useState("")
+  const [categorySearch, setCategorySearch] = useState("")
+  const [isCustom, setIsCustom] = useState(false)
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [location, setLocation] = useState("")
+  const [mapLocation, setMapLocation] = useState<RequestLocation | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<ServiceRequest | null>(null)
 
   const category = categories.data?.find((c) => c.id === categoryId)
+  const matchingCategories = (categories.data ?? []).filter((item) => {
+    const term = categorySearch.trim().toLowerCase()
+    return !term || `${item.name} ${item.description}`.toLowerCase().includes(term)
+  })
   const steps = ["Choose service", "Describe & locate", "Review & submit"]
 
   if (created) {
@@ -66,7 +74,7 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
     }
     const cleanTitle = title.trim()
     const cleanDescription = description.trim()
-    const cleanLocation = location.trim()
+    const cleanLocation = mapLocation?.address.trim() ?? ""
     if (cleanTitle.length < 4 || cleanTitle.length > 150) {
       setError("Enter a request title between 4 and 150 characters.")
       setStep(2)
@@ -77,8 +85,8 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
       setStep(2)
       return
     }
-    if (!cleanLocation || cleanLocation.length > 300) {
-      setError("Enter a location using up to 300 characters.")
+    if (!cleanLocation || !mapLocation) {
+      setError("Search for and confirm the exact request location on the map.")
       setStep(2)
       return
     }
@@ -95,8 +103,12 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
       const request = await submitRequest({
         title,
         description,
-        category_id: categoryId,
-        location,
+        category_id: isCustom ? null : categoryId,
+        location: cleanLocation,
+        is_custom: isCustom,
+        latitude: mapLocation.latitude,
+        longitude: mapLocation.longitude,
+        location_details: { barangay: mapLocation.barangay, city: mapLocation.city, province: mapLocation.province },
       }, evidencePath)
       setCreated(request)
     } catch (err) {
@@ -145,14 +157,15 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
 
           {step === 1 && (
             <div className="request-form">
+              <label className="category-search"><Icon name="search" size={17} /><input value={categorySearch} onChange={(event) => setCategorySearch(event.target.value)} placeholder="Search for a concern or service..." aria-label="Search request categories" /></label>
               <div className="choice-grid">
-                {(categories.data ?? []).map((item) => (
+                {matchingCategories.map((item) => (
                   <label key={item.id}>
                     <input
                       type="radio"
                       name="category"
-                      checked={categoryId === item.id}
-                      onChange={() => setCategoryId(item.id)}
+                      checked={!isCustom && categoryId === item.id}
+                      onChange={() => { setCategoryId(item.id); setIsCustom(false) }}
                     />
                     <span>
                       <Icon name="file" size={20} />
@@ -164,7 +177,12 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
                     </span>
                   </label>
                 ))}
+                <label className="custom-request-choice">
+                  <input type="radio" name="category" checked={isCustom} onChange={() => { setIsCustom(true); setCategoryId("") }} />
+                  <span><Icon name="plus" size={20} /><b>Can't find your concern? Submit a Custom Request</b><small>Describe a legitimate barangay concern that is not listed above. It will follow the same review and dispatch process.</small></span>
+                </label>
               </div>
+              {!matchingCategories.length && <Notice tone="info">No matching category found. You can submit a Custom Request instead.</Notice>}
               {categories.loading && <p className="muted-note">Loading services…</p>}
               {categories.error && (
                 <Notice tone="warning">
@@ -187,13 +205,9 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
               <Field label="What happened?" hint="At least 10 characters. Include dates, effects, and what help you need." required>
                 <TextArea value={description} onChange={setDescription} rows={5} required />
               </Field>
-              <Field label="Location" hint="Street or landmark, up to 300 characters" required>
-                <TextInput
-                  value={location}
-                  onChange={setLocation}
-                  placeholder="e.g. Rizal St., near the covered court"
-                  required
-                />
+              {isCustom && <Notice tone="info">This will be submitted as a Custom Request for barangay staff assessment and priority review.</Notice>}
+              <Field label="Exact location" hint="Search an address, click the map, or drag the pin. Confirm the selected location before continuing." required>
+                <GoogleLocationPicker value={mapLocation} onChange={(selected) => { setMapLocation(selected); setLocation(selected?.address ?? "") }} />
               </Field>
               <label className="upload-zone">
                 <Icon name="upload" size={20} />
@@ -215,7 +229,7 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
               <div className="review-card">
                 <div>
                   <span>Service</span>
-                  <strong>{category?.name ?? "—"}</strong>
+                  <strong>{isCustom ? "Custom Request" : category?.name ?? "—"}</strong>
                 </div>
                 <div>
                   <span>Target resolution</span>
@@ -256,8 +270,8 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
             <Button
               icon="arrow"
               disabled={
-                (step === 1 && !categoryId) ||
-                (step === 2 && (!title.trim() || !description.trim() || !location.trim() || !file))
+                (step === 1 && !categoryId && !isCustom) ||
+                (step === 2 && (!title.trim() || !description.trim() || !mapLocation || !file))
               }
               onClick={() => setStep(step + 1)}
             >

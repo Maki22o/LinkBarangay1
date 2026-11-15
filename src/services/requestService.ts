@@ -15,7 +15,8 @@ import type {
 
 const REQUEST_SELECT = `
   id, reference, title, description, category_id, barangay_id, department_id,
-  status, priority, is_anonymous, submitter_name, submitter_contact, location,
+  status, priority, is_anonymous, is_custom, submitter_name, submitter_contact, location,
+  location_latitude, location_longitude, location_details,
   submitted_by, assigned_to, assigned_by, due_at, needs_info_by, needs_info_message,
   rejection_reason, resolved_at, closed_at, reopened_count, escalation_count,
   created_at, updated_at,
@@ -59,7 +60,8 @@ export async function listRequests(profile: Profile, filters: RequestListFilters
   let query = supabase
     .from("lb_service_requests")
     .select(
-      `id, reference, title, status, priority, is_anonymous, submitter_name, location,
+      `id, reference, title, status, priority, is_anonymous, is_custom, submitter_name, location,
+       location_latitude, location_longitude, location_details,
        category_id, department_id, barangay_id, submitted_by, assigned_to, priority_rank,
        due_at, created_at, updated_at, escalation_count,
        category:lb_service_categories(id, name),
@@ -126,18 +128,26 @@ export async function getRequest(
 export interface SubmitInput {
   title: string
   description: string
-  category_id: string
+  category_id: string | null
   location: string
+  is_custom: boolean
+  latitude: number
+  longitude: number
+  location_details: Record<string, string>
   barangay_id?: string | null
 }
 
 export async function submitRequest(input: SubmitInput, evidencePath: string): Promise<ServiceRequest> {
-  const { data, error } = await supabase.rpc("app_submit_resident_request_with_evidence", {
+  const { data, error } = await supabase.rpc("app_submit_resident_request_with_evidence_v2", {
     p_title: input.title.trim(),
     p_description: input.description.trim(),
     p_category_id: input.category_id,
     p_location: input.location.trim(),
     p_evidence_path: evidencePath,
+    p_is_custom: input.is_custom,
+    p_latitude: input.latitude,
+    p_longitude: input.longitude,
+    p_location_details: input.location_details,
   })
   if (error) throw new Error(error.message)
   const result = data as { request?: ServiceRequest }
@@ -148,7 +158,7 @@ export async function submitRequest(input: SubmitInput, evidencePath: string): P
 /** Secretary / front-desk encoding for a walk-in resident (no login by them). */
 export async function encodeWalkInRequest(
   profile: Profile,
-  input: SubmitInput & { submitter_name: string; submitter_contact?: string },
+  input: Pick<SubmitInput, "title" | "description" | "category_id" | "location"> & { submitter_name: string; submitter_contact?: string },
 ): Promise<ServiceRequest> {
   const { data, error } = await supabase
     .from("lb_service_requests")

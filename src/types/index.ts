@@ -139,9 +139,13 @@ export interface ServiceRequest {
   status: RequestStatus
   priority: RequestPriority
   is_anonymous: boolean
+  is_custom: boolean
   submitter_name: string | null
   submitter_contact: string | null
   location: string
+  location_latitude: number | null
+  location_longitude: number | null
+  location_details: Record<string, string>
   submitted_by: string | null
   assigned_to: string | null
   assigned_by: string | null

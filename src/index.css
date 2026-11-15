@@ -421,6 +421,7 @@ td:last-child { width: 40px; }
 .location-panel > strong { font-size: 10px; }
 .location-panel > p { margin-top: 4px; color: #7d899b; font-size: 9px; }
 .location-panel > button, .help-small button, .performance-panel > button { margin-top: 11px; padding: 0; border: 0; color: var(--blue); background: transparent; display: flex; align-items: center; gap: 5px; font-size: 9px; font-weight: 700; }
+.location-directions { margin-top: 11px; color: var(--blue); display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; text-decoration: none; }
 .assigned-panel > div { padding-top: 13px; display: flex; align-items: center; gap: 9px; }
 .person-avatar { width: 34px; height: 34px; border-radius: 8px; color: white; background: #55739f; display: grid; place-items: center; font-size: 9px; font-weight: 700; }
 .assigned-panel p { flex: 1; }
@@ -678,6 +679,16 @@ td:last-child { width: 40px; }
 .attachments-panel .upload-zone { margin: 0 18px 16px; }
 .anon-success { display: flex; flex-direction: column; gap: 14px; }
 .confirm-panel { display: flex; flex-direction: column; gap: 14px; }
+.category-search, .map-search-input { height: 42px; padding: 0 13px; border: 1px solid #d5dce5; border-radius: 8px; background: #fff; display: flex; align-items: center; gap: 9px; color: #71819a; margin-bottom: 14px; }
+.category-search:focus-within, .map-search-input:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(47,94,218,.12); }
+.category-search input, .map-search-input input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: #263957; font: inherit; }
+.custom-request-choice span { border-style: dashed !important; border-color: #9ab6ef !important; background: #f7faff !important; }
+.map-picker { display: grid; gap: 10px; }
+.google-map { min-height: 300px; border: 1px solid #d5dce5; border-radius: 9px; overflow: hidden; background: #edf2f8; }
+.location-summary { display: grid; gap: 4px; padding: 11px 13px; border: 1px solid #dce5f4; border-radius: 8px; background: #f7faff; color: #42536e; }
+.location-summary strong { color: #233a63; font-size: 12px; }
+.location-summary span { font-size: 12px; }
+.location-summary small { color: #687995; font-size: 10px; }
 .action-buttons { display: flex; flex-direction: column; gap: 9px; align-items: stretch; }
 .action-buttons .inline-notice { align-items: center; }
 .profile-fields-footer { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; }

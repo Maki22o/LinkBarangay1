@@ -464,7 +464,7 @@ function RegisterForm({
             />
           </Field>
           {accountType === "resident" && (
-            <Field label="Government-issued ID with full residential address" required hint="JPG, PNG, WebP, or PDF · up to 10 MB · visible only to administrators">
+            <Field label="Valid ID or document with full residential address" required hint="Any valid ID or document that clearly shows your complete address · JPG, PNG, WebP, or PDF · up to 10 MB · visible only to administrators">
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp,application/pdf"

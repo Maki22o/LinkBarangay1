@@ -145,7 +145,7 @@ export function RequestDetailPage({
               <span className="page-kicker">{formatRef(request.reference)}</span>
               <h1>{request.title}</h1>
               <p>
-                {request.category?.name ?? "Uncategorized"} · {request.location || "No location"} ·
+                {request.is_custom ? "Custom Request" : request.category?.name ?? "Uncategorized"} · {request.location || "No location"} ·
                 Submitted {formatDateTime(request.created_at)}
               </p>
             </div>
@@ -393,6 +393,12 @@ export function RequestDetailPage({
             </div>
             <strong>{request.location || "No location provided"}</strong>
             <p>{request.barangay?.name ?? ""}</p>
+            {request.location_latitude != null && request.location_longitude != null && (
+              <>
+                <p>Lat {Number(request.location_latitude).toFixed(6)} · Lng {Number(request.location_longitude).toFixed(6)}</p>
+                <a className="location-directions" href={`https://www.google.com/maps/dir/?api=1&destination=${request.location_latitude},${request.location_longitude}`} target="_blank" rel="noreferrer">Open directions <Icon name="arrow" size={13} /></a>
+              </>
+            )}
           </section>
 
           {(isOwner || (role === "worker" && profile?.worker_function === "dispatcher") || role === "admin" || staffBarangay) && (
