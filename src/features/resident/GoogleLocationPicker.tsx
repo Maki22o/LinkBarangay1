@@ -1,115 +1,61 @@
 import { useEffect, useRef, useState } from "react"
 import { Icon } from "@/components/common/Icon"
+import { Button } from "@/components/common/ui"
 import { Notice } from "@/components/common/States"
 
-declare global { interface Window { google?: any } }
+export interface RequestLocation { address: string; latitude: number | null; longitude: number | null; barangay: string; city: string; province: string; map_url: string }
+declare global { interface Window { L?: any } }
+let leafletLoader: Promise<any> | null = null
 
-export interface RequestLocation {
-  address: string
-  latitude: number | null
-  longitude: number | null
-  barangay: string
-  city: string
-  province: string
-  map_url: string
-}
-
-let mapsLoader: Promise<void> | null = null
-
-function loadMaps(key: string) {
-  if (window.google?.maps?.places) return Promise.resolve()
-  if (mapsLoader) return mapsLoader
-  mapsLoader = new Promise((resolve, reject) => {
-    const script = document.createElement("script")
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places`
-    script.async = true
-    script.onload = () => window.google?.maps?.places ? resolve() : reject(new Error("Google Maps did not load correctly."))
-    script.onerror = () => reject(new Error("Google Maps could not be loaded. Check your connection and API key restrictions."))
-    document.head.appendChild(script)
+function loadLeaflet() {
+  if (window.L) return Promise.resolve(window.L)
+  if (leafletLoader) return leafletLoader
+  leafletLoader = new Promise((resolve, reject) => {
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"; css.integrity = "sha256-p4NxAoJBhIINfQWQMyw2s5n8K0V4K0GfMdeF3M4hA+4="; css.crossOrigin = ""; document.head.appendChild(css)
+    const script = document.createElement("script"); script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"; script.integrity = "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="; script.crossOrigin = ""; script.async = true
+    script.onload = () => window.L ? resolve(window.L) : reject(new Error("The map library could not be loaded.")); script.onerror = () => reject(new Error("The map library could not be loaded. Check your internet connection.")); document.head.appendChild(script)
   })
-  return mapsLoader
+  return leafletLoader
 }
 
-function component(components: any[], type: string) {
-  return components.find((item) => item.types?.includes(type))?.long_name ?? ""
-}
+function parts(row: any) { const a = row.address ?? {}; return { barangay: a.suburb ?? a.village ?? a.neighbourhood ?? "", city: a.city ?? a.town ?? a.municipality ?? "", province: a.state ?? a.province ?? "" } }
 
 export function GoogleLocationPicker({ value, onChange }: { value: RequestLocation | null; onChange: (value: RequestLocation | null) => void }) {
-  const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined
-  const mapNode = useRef<HTMLDivElement>(null)
-  const searchNode = useRef<HTMLInputElement>(null)
-  const mapRef = useRef<any>(null)
-  const markerRef = useRef<any>(null)
-  const geocoderRef = useRef<any>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [ready, setReady] = useState(false)
-
-  useEffect(() => {
-    if (!key || !mapNode.current || !searchNode.current) return
-    let cancelled = false
-    void loadMaps(key).then(() => {
-      if (cancelled || !window.google) return
-      const google = window.google
-      const hasCoordinates = value?.latitude != null && value?.longitude != null
-      const initial = hasCoordinates ? { lat: value!.latitude!, lng: value!.longitude! } : { lat: 14.5995, lng: 120.9842 }
-      const map = new google.maps.Map(mapNode.current, { center: initial, zoom: hasCoordinates ? 17 : 12, mapTypeControl: false, streetViewControl: false })
-      const marker = new google.maps.Marker({ map, position: hasCoordinates ? initial : null, draggable: true })
-      mapRef.current = map; markerRef.current = marker; geocoderRef.current = new google.maps.Geocoder()
-      const applyPlace = (place: any, fallbackPosition?: any) => {
-        const location = place?.geometry?.location ?? fallbackPosition
-        if (!location) return
-        const latitude = typeof location.lat === "function" ? location.lat() : location.lat
-        const longitude = typeof location.lng === "function" ? location.lng() : location.lng
-        const address = place?.formatted_address ?? searchNode.current?.value ?? "Selected map location"
-        const parts = place?.address_components ?? []
-        marker.setPosition({ lat: latitude, lng: longitude }); map.panTo({ lat: latitude, lng: longitude }); map.setZoom(17)
-        onChange({ address, latitude, longitude, barangay: component(parts, "sublocality_level_1") || component(parts, "sublocality"), city: component(parts, "locality") || component(parts, "administrative_area_level_2"), province: component(parts, "administrative_area_level_1"), map_url: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` })
-      }
-      const reverse = (position: any) => geocoderRef.current.geocode({ location: position }).then((result: any) => {
-        const found = result.results?.[0]
-        if (found) { searchNode.current!.value = found.formatted_address; applyPlace(found, position) }
-        else setError("We could not determine an address for that pin. Search for a complete address instead.")
-      }).catch(() => setError("Address lookup failed. Search for the complete address and try again."))
-      const autocomplete = new google.maps.places.Autocomplete(searchNode.current, { fields: ["geometry", "formatted_address", "address_components"], componentRestrictions: { country: "ph" } })
-      autocomplete.addListener("place_changed", () => { const place = autocomplete.getPlace(); if (!place.geometry) { setError("Select an address from the suggestions."); return }; setError(null); applyPlace(place) })
-      map.addListener("click", (event: any) => { setError(null); void reverse(event.latLng) })
-      marker.addListener("dragend", (event: any) => { setError(null); void reverse(event.latLng) })
-      setReady(true)
-    }).catch((reason: Error) => { if (!cancelled) setError(reason.message) })
-    return () => { cancelled = true }
-  }, [key])
-
-  if (!key) return <GoogleMapsLinkPicker value={value} onChange={onChange} />
-
-  return <div className="map-picker">
-    <label className="map-search-input"><Icon name="search" size={16} /><input ref={searchNode} placeholder="Search for a complete address or location..." aria-label="Search location" /></label>
-    <div ref={mapNode} className="google-map" aria-label="Interactive Google map" />
-    {!ready && !error && <p className="muted-note">Loading interactive map…</p>}
-    {error && <Notice tone="warning">{error}</Notice>}
-    {value && <div className="location-summary">
-      <strong>Selected location</strong><span>{value.address}</span>
-      <small>Barangay: {value.barangay || "—"} · City/Municipality: {value.city || "—"} · Province: {value.province || "—"}</small>
-      {value.latitude != null && value.longitude != null && <small>Latitude: {value.latitude.toFixed(6)} · Longitude: {value.longitude.toFixed(6)}</small>}
-    </div>}
-  </div>
-}
-
-function GoogleMapsLinkPicker({ value, onChange }: { value: RequestLocation | null; onChange: (value: RequestLocation | null) => void }) {
-  const [address, setAddress] = useState(value?.address ?? "")
-  const [mapUrl, setMapUrl] = useState(value?.map_url ?? "")
-  const update = (nextAddress: string, nextUrl: string) => {
-    setAddress(nextAddress); setMapUrl(nextUrl)
-    if (!nextAddress.trim() || !nextUrl.trim()) { onChange(null); return }
-    try { const url = new URL(nextUrl); if (!/google\.[^/]+$/.test(url.hostname) && !url.hostname.endsWith("goo.gl")) throw new Error("not-google") } catch { onChange(null); return }
-    const coordinateMatch = nextUrl.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/) ?? nextUrl.match(/[?&]q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/)
-    onChange({ address: nextAddress.trim(), latitude: coordinateMatch ? Number(coordinateMatch[1]) : null, longitude: coordinateMatch ? Number(coordinateMatch[2]) : null, barangay: "", city: "", province: "", map_url: nextUrl.trim() })
+  const mapNode = useRef<HTMLDivElement>(null), mapRef = useRef<any>(null), markerRef = useRef<any>(null)
+  const [address, setAddress] = useState(value?.address ?? ""), [mapUrl, setMapUrl] = useState(value?.map_url ?? ""), [searching, setSearching] = useState(false), [error, setError] = useState<string | null>(null)
+  const setPoint = (latitude: number, longitude: number, nextAddress = address, locationParts = { barangay: "", city: "", province: "" }) => {
+    const L = window.L; if (!L || !mapRef.current) return
+    const point = L.latLng(latitude, longitude)
+    if (!markerRef.current) { markerRef.current = L.marker(point, { draggable: true }).addTo(mapRef.current); markerRef.current.on("dragend", () => { const moved = markerRef.current.getLatLng(); setPoint(moved.lat, moved.lng) }) } else markerRef.current.setLatLng(point)
+    mapRef.current.setView(point, 17); onChange({ address: nextAddress.trim() || "Pinned map location", latitude, longitude, ...locationParts, map_url: mapUrl.trim() || `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}` })
   }
-  const preview = `https://www.google.com/maps?q=${encodeURIComponent(address || "Philippines")}&output=embed`
+  useEffect(() => {
+    if (!mapNode.current) return
+    let cancelled = false
+    void loadLeaflet().then((L) => {
+      if (cancelled || mapRef.current) return
+      const hasPoint = value?.latitude != null && value?.longitude != null, point = hasPoint ? [value!.latitude, value!.longitude] : [14.5995, 120.9842]
+      const map = L.map(mapNode.current, { scrollWheelZoom: true }).setView(point, hasPoint ? 17 : 12)
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\">OpenStreetMap</a> contributors" }).addTo(map)
+      mapRef.current = map
+      if (hasPoint) setPoint(value!.latitude!, value!.longitude!, value!.address, { barangay: value!.barangay, city: value!.city, province: value!.province })
+      map.on("click", (event: any) => setPoint(event.latlng.lat, event.latlng.lng))
+    }).catch((reason: Error) => { if (!cancelled) setError(reason.message) })
+    return () => { cancelled = true; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; markerRef.current = null } }
+  }, [])
+  const searchAddress = async () => {
+    if (!address.trim()) { setError("Enter a complete address before searching."); return }
+    setSearching(true); setError(null)
+    try { const response = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=ph&q=${encodeURIComponent(address.trim())}`); if (!response.ok) throw new Error("Address search is temporarily unavailable."); const result = await response.json(); if (!result[0]) throw new Error("No matching address found. Try a more complete address or place the pin manually."); const row = result[0]; setAddress(row.display_name); setPoint(Number(row.lat), Number(row.lon), row.display_name, parts(row)) } catch (reason) { setError((reason as Error).message) } finally { setSearching(false) }
+  }
+  const useCurrentLocation = () => navigator.geolocation ? navigator.geolocation.getCurrentPosition((position) => setPoint(position.coords.latitude, position.coords.longitude), () => setError("We could not access your location. Allow location permission or place the pin manually."), { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }) : setError("This browser does not support location access.")
   return <div className="map-picker">
-    <Notice tone="info">Use a Google Maps share link instead of the interactive map. Paste the exact address and link so personnel can open the location.</Notice>
-    <label className="map-search-input"><Icon name="pin" size={16} /><input value={address} onChange={(event) => update(event.target.value, mapUrl)} placeholder="Complete address of the concern" aria-label="Complete address" /></label>
-    <label className="map-search-input"><Icon name="search" size={16} /><input value={mapUrl} onChange={(event) => update(address, event.target.value)} placeholder="Paste Google Maps share link" aria-label="Google Maps link" /></label>
-    <iframe className="google-map" title="Google Maps location preview" src={preview} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
-    {value && <div className="location-summary"><strong>Saved map location</strong><span>{value.address}</span><a href={value.map_url} target="_blank" rel="noreferrer">Open in Google Maps <Icon name="arrow" size={13} /></a></div>}
+    <Notice tone="info">Search an address, use your current location, or click and drag the pin. The map saves exact coordinates without a Google Maps API key.</Notice>
+    <div className="map-search-row"><label className="map-search-input"><Icon name="search" size={16} /><input value={address} onChange={(event) => setAddress(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void searchAddress() } }} placeholder="Complete address of the concern" aria-label="Complete address" /></label><Button variant="secondary" disabled={searching} onClick={() => void searchAddress()}>{searching ? "Searching…" : "Find address"}</Button></div>
+    <div className="map-actions"><Button variant="secondary" icon="pin" onClick={useCurrentLocation}>Use my current location</Button></div>
+    <div ref={mapNode} className="openstreet-map" aria-label="Interactive map: click or drag marker to select location" />
+    <label className="map-search-input"><Icon name="route" size={16} /><input value={mapUrl} onChange={(event) => { setMapUrl(event.target.value); if (value) onChange({ ...value, map_url: event.target.value.trim() || `https://www.google.com/maps/search/?api=1&query=${value.latitude},${value.longitude}` }) }} placeholder="Optional: paste a Google Maps share link for directions" aria-label="Google Maps share link" /></label>
+    {error && <Notice tone="warning">{error}</Notice>}
+    {value && <div className="location-summary"><strong>Selected location</strong><span>{value.address}</span><small>Latitude: {value.latitude?.toFixed(6)} · Longitude: {value.longitude?.toFixed(6)}</small>{value.map_url && <a href={value.map_url} target="_blank" rel="noreferrer">Open in Google Maps <Icon name="arrow" size={13} /></a>}</div>}
   </div>
 }

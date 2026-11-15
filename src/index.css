@@ -685,6 +685,11 @@ td:last-child { width: 40px; }
 .custom-request-choice span { border-style: dashed !important; border-color: #9ab6ef !important; background: #f7faff !important; }
 .map-picker { display: grid; gap: 10px; }
 .google-map { min-height: 300px; border: 1px solid #d5dce5; border-radius: 9px; overflow: hidden; background: #edf2f8; }
+.openstreet-map { min-height: 330px; border: 1px solid #d5dce5; border-radius: 9px; overflow: hidden; background: #edf2f8; z-index: 0; }
+.map-search-row { display: flex; align-items: stretch; gap: 10px; }
+.map-search-row .map-search-input { flex: 1; margin-bottom: 0; }
+.map-actions { display: flex; gap: 10px; }
+@media (max-width: 560px) { .map-search-row { flex-direction: column; } .map-search-row .button { width: 100%; } }
 .location-summary { display: grid; gap: 4px; padding: 11px 13px; border: 1px solid #dce5f4; border-radius: 8px; background: #f7faff; color: #42536e; }
 .location-summary strong { color: #233a63; font-size: 12px; }
 .location-summary span { font-size: 12px; }

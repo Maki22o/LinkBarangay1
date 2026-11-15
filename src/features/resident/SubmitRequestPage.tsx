@@ -206,7 +206,7 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
                 <TextArea value={description} onChange={setDescription} rows={5} required />
               </Field>
               {isCustom && <Notice tone="info">This will be submitted as a Custom Request for barangay staff assessment and priority review.</Notice>}
-              <Field label="Exact location" hint="Enter the address and paste its Google Maps share link. The map preview appears below." required>
+              <Field label="Exact location" hint="Search the address, use your current location, or click and drag the pin. A Google Maps link is optional." required>
                 <GoogleLocationPicker value={mapLocation} onChange={(selected) => { setMapLocation(selected); setLocation(selected?.address ?? "") }} />
               </Field>
               <label className="upload-zone">
