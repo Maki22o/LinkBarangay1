@@ -3,9 +3,8 @@ import test from "node:test"
 import { notificationBadge, notificationDestination } from "../src/lib/notificationNavigation.ts"
 
 const resident = { id: "resident-a", role: "resident", status: "active", worker_function: null }
-const officer = { id: "officer-a", role: "worker", status: "active", worker_function: "officer" }
+const barangayStaff = { id: "staff-a", role: "worker", status: "active", worker_function: "barangay_staff" }
 const field = { id: "field-a", role: "worker", status: "active", worker_function: "field" }
-const secretary = { id: "secretary-a", role: "worker", status: "active", worker_function: "secretary" }
 const admin = { id: "admin-a", role: "admin", status: "active", worker_function: null }
 const item = (destination_view, entity_id = null, request_id = null) => ({ destination_view, entity_id, request_id })
 
@@ -32,7 +31,7 @@ test("job notifications require field workflow permission and assignment metadat
   assert.deepEqual(notificationDestination(item("job-detail", "job-a"), field), {
     view: "job-detail", entityId: "job-a", record: "assignment",
   })
-  for (const profile of [resident, officer, secretary, admin]) {
+  for (const profile of [resident, barangayStaff, admin]) {
     assert.equal(notificationDestination(item("job-detail", "job-a"), profile), null)
   }
   assert.equal(notificationDestination(item("job-detail", null, "request-a"), field), null)
@@ -42,11 +41,10 @@ test("appointment and admin module destinations preserve current role permission
   assert.deepEqual(notificationDestination(item("appointments", "appointment-a"), resident), {
     view: "notifications", entityId: "appointment-a", record: "appointment", inline: true,
   })
-  assert.equal(notificationDestination(item("appointments", "appointment-a"), officer), null)
-  assert.equal(notificationDestination(item("appointments", "appointment-a"), secretary)?.view, "appointments")
+  assert.equal(notificationDestination(item("appointments", "appointment-a"), barangayStaff)?.view, "appointments")
   for (const view of ["users", "configuration", "barangays", "departments", "categories", "routing", "sla-settings"]) {
     assert.equal(notificationDestination(item(view), resident), null)
-    assert.equal(notificationDestination(item(view), officer), null)
+    assert.equal(notificationDestination(item(view), barangayStaff), null)
     assert.equal(notificationDestination(item(view), admin)?.view, view)
   }
 })
@@ -67,7 +65,7 @@ test("generic reassignment notices open only the authorized field jobs module", 
   assert.deepEqual(notificationDestination(item("jobs"), field), {
     view: "jobs", entityId: null, record: null,
   })
-  for (const profile of [resident, officer, secretary, admin]) {
+  for (const profile of [resident, barangayStaff, admin]) {
     assert.equal(notificationDestination(item("jobs"), profile), null)
   }
 })
@@ -76,7 +74,7 @@ test("personnel-availability notices preserve dispatcher assignment permission",
   const dispatcher = { ...field, worker_function: "dispatcher" }
   assert.equal(notificationDestination(item("assignments"), dispatcher)?.view, "assignments")
   assert.equal(notificationDestination(item("assignments"), admin)?.view, "assignments")
-  for (const profile of [resident, officer, secretary, field]) {
+  for (const profile of [resident, barangayStaff, field]) {
     assert.equal(notificationDestination(item("assignments"), profile), null)
   }
 })

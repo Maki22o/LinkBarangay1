@@ -37,6 +37,7 @@ import {
   PersonnelPage,
   WorkloadPage,
 } from "@/features/dispatcher/DispatcherPages"
+import { AvailabilityPage } from "@/features/dispatcher/AvailabilityPage"
 import {
   UsersPage,
 } from "@/features/admin/AdminPages"
@@ -304,6 +305,8 @@ function Root() {
         return <PersonnelPage />
       case "workload":
         return <WorkloadPage />
+      case "availability":
+        return <AvailabilityPage />
 
       // Field personnel
       case "jobs":

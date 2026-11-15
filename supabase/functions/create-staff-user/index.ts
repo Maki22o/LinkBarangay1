@@ -14,7 +14,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VALID_WORKER_FUNCTIONS = ["secretary", "officer", "captain", "dispatcher", "field"] as const;
+const VALID_WORKER_FUNCTIONS = ["barangay_staff", "dispatcher", "field"] as const;
 type WorkerFunction = (typeof VALID_WORKER_FUNCTIONS)[number];
 type AccountRole = "resident" | "worker";
 const APP_ORIGIN = Deno.env.get("APP_ORIGIN") ?? "http://127.0.0.1:8443";
@@ -102,14 +102,14 @@ Deno.serve(async (req: Request) => {
   if (role === "worker" && !VALID_WORKER_FUNCTIONS.includes(workerFunction)) {
     return json({ error: `Worker function must be one of: ${VALID_WORKER_FUNCTIONS.join(", ")}` }, 400);
   }
-  if (role === "worker" && ["secretary", "officer", "captain"].includes(workerFunction) && !barangayId) {
+  if (role === "worker" && workerFunction === "barangay_staff" && !barangayId) {
     return json({ error: "Select a barangay for this worker function" }, 400);
   }
   if (role === "worker" && ["dispatcher", "field"].includes(workerFunction) && !departmentId) {
     return json({ error: "Select a department for this worker function" }, 400);
   }
 
-  const barangayWorker = role === "worker" && ["secretary", "officer", "captain"].includes(workerFunction);
+  const barangayWorker = role === "worker" && workerFunction === "barangay_staff";
   const departmentWorker = role === "worker" && ["dispatcher", "field"].includes(workerFunction);
   const scopedBarangayId = role === "resident" || barangayWorker ? barangayId : null;
   const scopedDepartmentId = departmentWorker ? departmentId : null;

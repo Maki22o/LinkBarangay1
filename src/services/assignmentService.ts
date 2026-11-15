@@ -8,7 +8,7 @@ import { withCurrentAssignments } from "@/lib/assignmentState"
 import type { Assignment } from "@/types"
 
 const ASSIGNMENT_SELECT = `
-  id, request_id, assigned_to, assigned_by, department_id, status, decline_reason,
+  id, request_id, assigned_to, assigned_by, department_id, status, appointment_status, duration_minutes, decline_reason,
   schedule_at, deadline_at, accepted_at, completed_at, notes, created_at, updated_at,
   request:lb_service_requests(
     id, reference, title, status, priority, location, category_id, department_id, assigned_to,

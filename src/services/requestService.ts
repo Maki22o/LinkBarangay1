@@ -29,6 +29,7 @@ const REQUEST_SELECT = `
 export interface RequestListFilters {
   status?: RequestStatus | ""
   priority?: RequestPriority | ""
+  sortBy?: "newest" | "priority"
   categoryId?: string | ""
   departmentId?: string | ""
   search?: string
@@ -42,7 +43,7 @@ export function requestRealtimeFilter(profile: Profile): string | undefined {
   if (profile.role === "resident") return `submitted_by=eq.${profile.id}`
   if (profile.role === "admin") return undefined
   if (profile.worker_function === "field") return `assigned_to=eq.${profile.id}`
-  if (["secretary", "officer", "captain"].includes(profile.worker_function ?? "")) {
+  if (profile.worker_function === "barangay_staff") {
     return profile.barangay_id ? `barangay_id=eq.${profile.barangay_id}` : undefined
   }
   if (profile.worker_function === "dispatcher") {
@@ -59,23 +60,21 @@ export async function listRequests(profile: Profile, filters: RequestListFilters
     .from("lb_service_requests")
     .select(
       `id, reference, title, status, priority, is_anonymous, submitter_name, location,
-       category_id, department_id, barangay_id, submitted_by, assigned_to,
+       category_id, department_id, barangay_id, submitted_by, assigned_to, priority_rank,
        due_at, created_at, updated_at, escalation_count,
        category:lb_service_categories(id, name),
        department:lb_departments(id, name),
        barangay:lb_barangays(id, name)`,
       { count: "exact" },
     )
-    .order(
-      filters.overdue ? "due_at" : "created_at",
-      { ascending: filters.overdue, nullsFirst: false },
-    )
+    .order(filters.overdue ? "due_at" : filters.sortBy === "priority" ? "priority_rank" : "created_at",
+      { ascending: filters.overdue || filters.sortBy === "priority", nullsFirst: false })
     .range((page - 1) * pageSize, page * pageSize - 1)
 
   // Scope filter mirrors the RLS policies (RLS remains the real gatekeeper)
   if (profile.role === "resident") query = query.eq("submitted_by", profile.id)
   else if (profile.role === "worker" && profile.worker_function === "field") query = query.eq("assigned_to", profile.id)
-  else if (profile.role === "worker" && ["secretary", "officer", "captain"].includes(profile.worker_function ?? ""))
+  else if (profile.role === "worker" && profile.worker_function === "barangay_staff")
     query = query.eq("barangay_id", profile.barangay_id ?? "00000000-0000-0000-0000-000000000000")
   else if (profile.role === "worker" && profile.worker_function === "dispatcher")
     query = query.eq("department_id", profile.department_id ?? "00000000-0000-0000-0000-000000000000")
@@ -132,12 +131,13 @@ export interface SubmitInput {
   barangay_id?: string | null
 }
 
-export async function submitRequest(input: SubmitInput): Promise<ServiceRequest> {
-  const { data, error } = await supabase.rpc("app_submit_resident_request", {
+export async function submitRequest(input: SubmitInput, evidencePath: string): Promise<ServiceRequest> {
+  const { data, error } = await supabase.rpc("app_submit_resident_request_with_evidence", {
     p_title: input.title.trim(),
     p_description: input.description.trim(),
     p_category_id: input.category_id,
     p_location: input.location.trim(),
+    p_evidence_path: evidencePath,
   })
   if (error) throw new Error(error.message)
   const result = data as { request?: ServiceRequest }
@@ -211,6 +211,15 @@ export async function escalateRequest(requestId: string, remarks?: string): Prom
   const { error } = await supabase.rpc("app_escalate_request", {
     p_request_id: requestId,
     p_remarks: remarks ?? null,
+  })
+  if (error) throw new Error(error.message)
+}
+
+export async function setRequestPriority(requestId: string, priority: RequestPriority): Promise<void> {
+  if (!["high", "medium", "low"].includes(priority)) throw new Error("Choose high, medium, or low priority.")
+  const { error } = await supabase.rpc("app_set_request_priority", {
+    p_request_id: requestId,
+    p_priority: priority,
   })
   if (error) throw new Error(error.message)
 }
@@ -306,6 +315,38 @@ export async function listAttachments(requestId: string): Promise<AttachmentRow[
 }
 
 export type AttachmentKindInput = "supporting_doc" | "before_photo" | "after_photo" | "reply_doc" | "completion_doc"
+
+export async function uploadStagedRequestEvidence(userId: string, file: File): Promise<string> {
+  const maxBytes = 50 * 1024 * 1024
+  const allowed = new Set(["image/jpeg", "image/png", "image/webp", "video/mp4", "video/webm", "video/quicktime"])
+  if (!allowed.has(file.type)) throw new Error("Choose a JPG, PNG, WebP photo, or MP4/WebM/MOV video.")
+  if (!file.size || file.size > maxBytes) throw new Error("Evidence must be under 50 MB.")
+  const safeName = file.name.replace(/[^\w.\-() ]+/g, "_").slice(0, 120)
+  const path = `staged/${userId}/${crypto.randomUUID()}-${safeName}`
+  const { error: uploadError } = await supabase.storage
+    .from("request-attachments")
+    .upload(path, file, { contentType: file.type, upsert: false })
+  if (uploadError) throw new Error(uploadError.message)
+  const { error } = await supabase.from("lb_attachments").insert({
+    request_id: null,
+    owner_id: userId,
+    storage_path: path,
+    file_name: file.name,
+    mime_type: file.type,
+    size_bytes: file.size,
+    kind: "request_evidence",
+  })
+  if (error) {
+    await supabase.storage.from("request-attachments").remove([path])
+    throw new Error(error.message)
+  }
+  return path
+}
+
+export async function removeStagedRequestEvidence(path: string, userId: string): Promise<void> {
+  await supabase.from("lb_attachments").delete().eq("storage_path", path).eq("owner_id", userId).is("request_id", null)
+  await supabase.storage.from("request-attachments").remove([path])
+}
 
 export async function uploadAttachment(
   requestId: string,

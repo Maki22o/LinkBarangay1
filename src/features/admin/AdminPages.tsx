@@ -9,7 +9,7 @@ import { Button, Status, formatDate } from "@/components/common/ui"
 import { Modal } from "@/components/common/Modal"
 import { ConfirmDialog } from "@/components/common/Modal"
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/common/States"
-import { Field, Select, TextInput } from "@/components/forms/fields"
+import { Field, Select, TextArea, TextInput } from "@/components/forms/fields"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
 import { supabase } from "@/lib/supabase"
@@ -20,6 +20,7 @@ import {
   EdgeFunctionUnavailableError,
 } from "@/services/staffInviteService"
 import { profileRoleLabel, ROLE_LABELS, WORKER_FUNCTION_LABELS } from "@/types"
+import { reviewResidentId, signedResidentIdUrl } from "@/services/residentVerificationService"
 import type { AccountStatus, Profile, Role, ViewId, WorkerFunction } from "@/types"
 
 const PAGE_SIZE = 10
@@ -35,6 +36,7 @@ export function UsersPage({ setView }: { setView: (view: ViewId) => void }) {
   const [actionError, setActionError] = useState<string | null>(null)
   const [suspendTarget, setSuspendTarget] = useState<Profile | null>(null)
   const [viewing, setViewing] = useState<Profile | null>(null)
+  const [reviewing, setReviewing] = useState<Profile | null>(null)
 
   const list = useAsync(
     () => listUsers({ search, role: roleFilter, status: statusFilter, page, pageSize: PAGE_SIZE }),
@@ -173,7 +175,7 @@ export function UsersPage({ setView }: { setView: (view: ViewId) => void }) {
                           : user.department?.name ?? "—"}
                       </td>
                       <td>
-                        <Status status={user.status} />
+                        <Status status={user.role === "resident" ? (user.verification?.status ?? "pending") : user.status} />
                       </td>
                       <td>{formatDate(user.created_at)}</td>
                       <td>
@@ -181,6 +183,11 @@ export function UsersPage({ setView }: { setView: (view: ViewId) => void }) {
                           <button className="icon-button" title="View details" onClick={() => setViewing(user)}>
                             <Icon name="eye" size={14} />
                           </button>
+                          {user.role === "resident" && user.verification?.status !== "approved" && user.verification?.storage_path && (
+                            <button className="icon-button" title="Review resident ID" onClick={() => setReviewing(user)}>
+                              <Icon name="shield" size={14} />
+                            </button>
+                          )}
                           <button
                             className="icon-button"
                             title={user.role === "resident" && !user.barangay_id ? "Assign barangay" : "Edit user"}
@@ -253,6 +260,13 @@ export function UsersPage({ setView }: { setView: (view: ViewId) => void }) {
           </div>
         </Modal>
       )}
+      {reviewing && (
+        <ReviewResidentVerificationModal
+          user={reviewing}
+          onClose={() => setReviewing(null)}
+          onReviewed={() => { setReviewing(null); list.refresh() }}
+        />
+      )}
       {editing && (
         <EditUserModal
           user={editing}
@@ -282,6 +296,60 @@ export function UsersPage({ setView }: { setView: (view: ViewId) => void }) {
   )
 }
 
+function ReviewResidentVerificationModal({ user, onClose, onReviewed }: {
+  user: Profile
+  onClose: () => void
+  onReviewed: () => void
+}) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [reason, setReason] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    let active = true
+    if (user.verification?.storage_path) {
+      void signedResidentIdUrl(user.verification.storage_path)
+        .then((signed) => { if (active) setUrl(signed) })
+        .catch((err) => { if (active) setError((err as Error).message) })
+    }
+    return () => { active = false }
+  }, [user.verification?.storage_path])
+  const decide = async (decision: "approved" | "rejected") => {
+    if (decision === "rejected" && reason.trim().length < 5) {
+      setError("Give the resident a short reason so they know what to correct.")
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      await reviewResidentId(user.id, decision, reason)
+      onReviewed()
+    } catch (err) { setError((err as Error).message) }
+    finally { setBusy(false) }
+  }
+  return (
+    <Modal title="Review resident ID" onClose={onClose} wide>
+      <Notice tone="info">Check that the name and complete residential address match this resident's account. This private file is available to administrators only.</Notice>
+      <div className="reference-box" style={{ marginTop: 12 }}>
+        <strong>{user.full_name}</strong><small>{user.address} · {user.barangay?.name ?? "No barangay"}</small>
+        <small>{user.verification?.file_name ?? "Identification document"}</small>
+      </div>
+      {error && <Notice tone="error">{error}</Notice>}
+      {!url ? <LoadingState label="Loading secure ID preview…" /> : user.verification?.mime_type?.startsWith("image/")
+        ? <img src={url} alt="Resident verification ID" style={{ display: "block", maxWidth: "100%", maxHeight: "55vh", objectFit: "contain", margin: "16px auto" }} />
+        : <iframe title="Resident verification ID" src={url} style={{ width: "100%", height: "55vh", border: "1px solid var(--line)", borderRadius: 8, marginTop: 14 }} />}
+      <Field label="Reason (required when rejecting)">
+        <TextArea value={reason} onChange={setReason} rows={3} placeholder="Explain what needs correction" />
+      </Field>
+      <div className="modal-actions">
+        <Button variant="secondary" disabled={busy} onClick={onClose}>Close</Button>
+        <Button variant="secondary" disabled={busy || !url} onClick={() => void decide("rejected")}>{busy ? "Saving…" : "Reject"}</Button>
+        <Button disabled={busy || !url} onClick={() => void decide("approved")}>{busy ? "Saving…" : "Approve resident"}</Button>
+      </div>
+    </Modal>
+  )
+}
+
 // ---------------------------------------------------------------------------
 function InviteStaffModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const barangays = useAsync(() => listBarangays(), [])
@@ -291,7 +359,7 @@ function InviteStaffModal({ onClose, onDone }: { onClose: () => void; onDone: ()
   const [email, setEmail] = useState("")
   const [mobile, setMobile] = useState("")
   const [role, setRole] = useState<"resident" | "worker">("worker")
-  const [workerFunction, setWorkerFunction] = useState<WorkerFunction>("officer")
+  const [workerFunction, setWorkerFunction] = useState<WorkerFunction>("barangay_staff")
   const [barangayId, setBarangayId] = useState("")
   const [departmentId, setDepartmentId] = useState("")
   const [busy, setBusy] = useState(false)
@@ -303,7 +371,7 @@ function InviteStaffModal({ onClose, onDone }: { onClose: () => void; onDone: ()
       setError("Select a barangay for this resident so requests can reach the right front desk.")
       return
     }
-    const barangayScoped = role === "worker" && ["secretary", "officer", "captain"].includes(workerFunction)
+    const barangayScoped = role === "worker" && workerFunction === "barangay_staff"
     const departmentScoped = role === "worker" && ["dispatcher", "field"].includes(workerFunction)
     if (barangayScoped && !barangayId) {
       setError("Select a barangay for this worker function.")
@@ -412,7 +480,7 @@ function InviteStaffModal({ onClose, onDone }: { onClose: () => void; onDone: ()
             ]}
           />
         </Field>}
-        {role === "worker" && <Field label="Barangay" hint="Required for front desk, officer, and supervisor workers">
+        {role === "worker" && <Field label="Barangay" hint="Required for unified barangay staff">
           <Select
             value={barangayId}
             onChange={setBarangayId}
@@ -465,7 +533,7 @@ function EditUserModal({
   const isPending = user.status === "pending"
   const [role, setRole] = useState<Role>(isPending ? "worker" : user.role)
   const [workerFunction, setWorkerFunction] = useState<WorkerFunction | null>(
-    isPending ? "officer" : user.worker_function,
+    isPending ? "barangay_staff" : user.worker_function,
   )
   const [status, setStatus] = useState<AccountStatus>(isPending ? "active" : user.status)
   const [barangayId, setBarangayId] = useState(user.barangay_id ?? "")
@@ -491,7 +559,7 @@ function EditUserModal({
       setError("Select a worker function.")
       return
     }
-    if (role === "worker" && ["secretary", "officer", "captain"].includes(workerFunction ?? "") && !barangayId) {
+    if (role === "worker" && workerFunction === "barangay_staff" && !barangayId) {
       setError("Select a barangay for this worker function.")
       return
     }
@@ -534,7 +602,7 @@ function EditUserModal({
           onChange={(value) => {
             const nextRole = value as Role
             setRole(nextRole)
-            if (nextRole === "worker" && !workerFunction) setWorkerFunction("officer")
+            if (nextRole === "worker" && !workerFunction) setWorkerFunction("barangay_staff")
             if (nextRole !== "worker") setWorkerFunction(null)
           }}
           disabled={isSelf}

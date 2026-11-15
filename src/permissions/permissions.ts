@@ -15,15 +15,13 @@ const RESIDENT_PERMISSIONS: Permission[] = [
 const ADMIN_PERMISSIONS: Permission[] = [
   "requests.create", "requests.view_own", "requests.view_barangay", "requests.view_department",
   "requests.verify", "requests.reject", "requests.route", "requests.assign", "requests.resolve",
-  "requests.comment", "requests.escalate", "intake.encode", "intake.verify_documents",
+  "requests.comment", "requests.escalate", "requests.prioritize", "intake.encode", "intake.verify_documents",
   "intake.appointments", "intake.resident_records", "personnel.view", "users.view", "users.create",
   "users.update", "users.suspend", "roles.manage", "reports.view", "audit.view", "configuration.manage",
 ]
 const WORKER_PERMISSIONS: Record<WorkerFunction, Permission[]> = {
-  secretary: ["requests.view_barangay", "requests.create", "requests.comment", "intake.encode", "intake.verify_documents", "intake.appointments", "intake.resident_records", "personnel.view"],
-  officer: ["requests.view_barangay", "requests.create", "requests.verify", "requests.reject", "requests.route", "requests.comment", "requests.escalate", "intake.verify_documents", "intake.resident_records", "personnel.view", "reports.view"],
-  captain: ["requests.view_barangay", "requests.verify", "requests.reject", "requests.resolve", "requests.comment", "requests.escalate", "intake.resident_records", "personnel.view", "reports.view"],
-  dispatcher: ["requests.view_department", "requests.route", "requests.assign", "requests.comment", "requests.escalate", "personnel.view", "reports.view"],
+  barangay_staff: ["requests.view_barangay", "requests.create", "requests.verify", "requests.reject", "requests.route", "requests.comment", "requests.escalate", "requests.prioritize", "requests.resolve", "intake.encode", "intake.verify_documents", "intake.appointments", "intake.resident_records", "personnel.view", "reports.view"],
+  dispatcher: ["requests.view_department", "requests.route", "requests.assign", "requests.comment", "requests.escalate", "personnel.view", "reports.view", "availability.manage"],
   field: ["requests.view_own", "requests.update_progress", "requests.comment"],
 }
 
@@ -70,6 +68,7 @@ export const VIEW_PERMISSIONS: Partial<Record<ViewId, Permission>> = {
   assignments: "requests.assign",
   personnel: "personnel.view",
   workload: "personnel.view",
+  availability: "availability.manage",
   "sla-monitor": "requests.view_department",
   jobs: "requests.update_progress",
   users: "users.view",
@@ -106,6 +105,7 @@ export interface NavItem {
   label: string
   icon: IconName
   view: ViewId
+  section?: string
 }
 
 export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
@@ -129,31 +129,18 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
 }
 
 export const NAV_BY_WORKER_FUNCTION: Record<WorkerFunction, NavItem[]> = {
-  secretary: [
-    { label: "Secretary Dashboard", icon: "home", view: "dashboard" },
-    { label: "Walk-in Encoding", icon: "plus", view: "walk-in" },
-    { label: "Incoming Requests", icon: "file", view: "intake" },
-    { label: "Document Verification", icon: "shield", view: "verification" },
-    { label: "Appointments", icon: "clock", view: "appointments" },
-    { label: "Resident Records", icon: "users", view: "residents" },
-    { label: "Notifications", icon: "bell", view: "notifications" },
-    { label: "My Profile", icon: "user", view: "profile" },
-  ],
-  officer: [
-    { label: "Officer Dashboard", icon: "home", view: "dashboard" },
-    { label: "Verification Queue", icon: "shield", view: "verify-queue" },
-    { label: "Barangay Requests", icon: "file", view: "requests" },
-    { label: "Escalated Requests", icon: "alert", view: "escalated" },
-    { label: "Notifications", icon: "bell", view: "notifications" },
-    { label: "My Profile", icon: "user", view: "profile" },
-  ],
-  captain: [
-    { label: "Supervisor Dashboard", icon: "home", view: "dashboard" },
-    { label: "Approval Queue", icon: "check", view: "approvals" },
-    { label: "Escalated Concerns", icon: "alert", view: "escalated" },
-    { label: "Barangay Requests", icon: "file", view: "requests" },
-    { label: "Personnel Monitoring", icon: "briefcase", view: "personnel-monitor" },
-    { label: "Barangay Reports", icon: "chart", view: "barangay-reports" },
+  barangay_staff: [
+    { label: "Barangay Staff Dashboard", icon: "home", view: "dashboard", section: "WORKSPACE" },
+    { label: "Incoming Requests", icon: "file", view: "intake", section: "INTAKE & REVIEW" },
+    { label: "Walk-in Encoding", icon: "plus", view: "walk-in", section: "INTAKE & REVIEW" },
+    { label: "Document Verification", icon: "shield", view: "verification", section: "INTAKE & REVIEW" },
+    { label: "All Barangay Requests", icon: "file", view: "requests", section: "MONITORING" },
+    { label: "Escalated Requests", icon: "alert", view: "escalated", section: "MONITORING" },
+    { label: "Inspection / Approval", icon: "check", view: "approvals", section: "MONITORING" },
+    { label: "Appointments", icon: "clock", view: "appointments", section: "COMMUNITY" },
+    { label: "Resident Records", icon: "users", view: "residents", section: "COMMUNITY" },
+    { label: "Personnel Monitoring", icon: "briefcase", view: "personnel-monitor", section: "COMMUNITY" },
+    { label: "Barangay Reports", icon: "chart", view: "barangay-reports", section: "COMMUNITY" },
     { label: "Notifications", icon: "bell", view: "notifications" },
     { label: "My Profile", icon: "user", view: "profile" },
   ],
@@ -161,6 +148,7 @@ export const NAV_BY_WORKER_FUNCTION: Record<WorkerFunction, NavItem[]> = {
     { label: "Operations Dashboard", icon: "home", view: "dashboard" },
     { label: "Department Queue", icon: "route", view: "dept-queue" },
     { label: "Assignments", icon: "briefcase", view: "assignments" },
+    { label: "Availability", icon: "clock", view: "availability" },
     { label: "All Department Requests", icon: "file", view: "requests" },
     { label: "Personnel", icon: "users", view: "personnel" },
     { label: "Workload & SLA", icon: "clock", view: "workload" },

@@ -10,7 +10,7 @@ import { Field, TextArea, TextInput } from "@/components/forms/fields"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
 import { listCategories } from "@/services/configService"
-import { submitRequest, uploadAttachment } from "@/services/requestService"
+import { removeStagedRequestEvidence, submitRequest, uploadStagedRequestEvidence } from "@/services/requestService"
 import type { ServiceRequest, ViewId } from "@/types"
 
 export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void }) {
@@ -24,7 +24,6 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [attachmentWarning, setAttachmentWarning] = useState<string | null>(null)
   const [created, setCreated] = useState<ServiceRequest | null>(null)
 
   const category = categories.data?.find((c) => c.id === categoryId)
@@ -37,7 +36,6 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
           <Icon name="check" size={30} />
         </span>
         <h1>Request submitted!</h1>
-        {attachmentWarning && <Notice tone="warning">{attachmentWarning}</Notice>}
         <p>
           Your concern is now in the barangay verification queue. Keep your reference number to
           track progress — updates will appear under My Requests and in your notifications.
@@ -62,6 +60,10 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
       setError("Your account has no barangay assigned yet. Ask an administrator to assign your barangay before submitting a request.")
       return
     }
+    if (profile.verification?.status !== "approved") {
+      setError("Your resident account must be approved before submitting a request.")
+      return
+    }
     const cleanTitle = title.trim()
     const cleanDescription = description.trim()
     const cleanLocation = location.trim()
@@ -80,24 +82,25 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
       setStep(2)
       return
     }
+    if (!file) {
+      setError("Attach at least one photo or video as evidence before submitting.")
+      setStep(2)
+      return
+    }
     setBusy(true)
     setError(null)
+    let evidencePath: string | null = null
     try {
+      evidencePath = await uploadStagedRequestEvidence(profile.id, file)
       const request = await submitRequest({
         title,
         description,
         category_id: categoryId,
         location,
-      })
-      if (file) {
-        try {
-          await uploadAttachment(request.id, profile.id, file, "supporting_doc")
-        } catch (err) {
-          setAttachmentWarning(`Your request was submitted, but the attachment could not be uploaded: ${(err as Error).message} You can add it from the request page.`)
-        }
-      }
+      }, evidencePath)
       setCreated(request)
     } catch (err) {
+      if (evidencePath) await removeStagedRequestEvidence(evidencePath, profile.id).catch(() => undefined)
       setError((err as Error).message)
     } finally {
       setBusy(false)
@@ -131,6 +134,9 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
         <Notice tone="warning">
           Your account needs an assigned barangay before you can submit a request. Contact an administrator; this ensures the correct front desk receives it.
         </Notice>
+      )}
+      {profile?.role === "resident" && profile.verification?.status !== "approved" && (
+        <Notice tone="warning">Your account is awaiting ID and address verification. Requests are available after admin approval.</Notice>
       )}
 
       <div className="form-panel">
@@ -191,14 +197,16 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
               </Field>
               <label className="upload-zone">
                 <Icon name="upload" size={20} />
-                <strong>{file ? file.name : "Attach a photo or document (optional)"}</strong>
-                <small>Images or PDF, max 10 MB</small>
+                <strong>{file ? file.name : "Attach required photo or video evidence"}</strong>
+                <small>JPG, PNG, WebP, MP4, WebM, MOV · max 50 MB</small>
                 <input
                   type="file"
-                  accept="image/*,application/pdf"
+                  accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
+                  required
                   onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                 />
               </label>
+              {!file && <p className="field-help">Evidence is required before you can continue.</p>}
             </div>
           )}
 
@@ -249,14 +257,14 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
               icon="arrow"
               disabled={
                 (step === 1 && !categoryId) ||
-                (step === 2 && (!title.trim() || !description.trim() || !location.trim()))
+                (step === 2 && (!title.trim() || !description.trim() || !location.trim() || !file))
               }
               onClick={() => setStep(step + 1)}
             >
               Continue
             </Button>
           ) : (
-            <Button icon="check" disabled={busy || !profile?.barangay_id} onClick={() => void submit()}>
+            <Button icon="check" disabled={busy || !profile?.barangay_id || profile?.verification?.status !== "approved" || !file} onClick={() => void submit()}>
               {busy ? "Submitting…" : "Submit request"}
             </Button>
           )}

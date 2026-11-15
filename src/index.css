@@ -1,6 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
 @import 'tailwindcss';
 
+/* Small readability increase for dense application controls and data. */
+.sidebar nav button { font-size: 13px; }
+.button { font-size: 15px; }
+table { font-size: 11px; }
+th { font-size: 9px; }
+.request-cell strong { font-size: 11px; }
+.request-cell small, .ref { font-size: 10px; }
+.field { font-size: 13px; }
+.field input, .field select, .field textarea { font-size: 14px; }
+.field-help { font-size: 11px; }
+
 @layer base {
   :root {
     font-family: 'DM Sans', sans-serif;

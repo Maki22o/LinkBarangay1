@@ -9,7 +9,11 @@ const PROFILE_SELECT = `
   id, full_name, email, mobile, address, role, worker_function, status,
   barangay_id, department_id, created_at, updated_at,
   barangay:lb_barangays!lb_profiles_barangay_id_fkey(id, name),
-  department:lb_departments!lb_profiles_department_id_fkey(id, name)
+  department:lb_departments!lb_profiles_department_id_fkey(id, name),
+  verification:lb_resident_verifications!lb_resident_verifications_user_id_fkey(
+    id, user_id, status, storage_path, file_name, mime_type, size_bytes,
+    rejection_reason, submitted_at, reviewed_at
+  )
 `
 
 function toProfile(row: Record<string, unknown>): Profile {
@@ -103,14 +107,14 @@ export async function adminUpdateUser(userId: string, patch: AdminUpdateInput): 
 // Scoped directory lookups (RLS enforces what the caller may see)
 // ---------------------------------------------------------------------------
 
-/** Worker profiles within a barangay (front desk / officer / supervisor functions). */
+/** Unified barangay staff profiles within the caller's barangay. */
 export async function listBarangayStaff(barangayId: string | null): Promise<Profile[]> {
   const { data, error } = await supabase
     .from("lb_profiles")
     .select(PROFILE_SELECT)
     .eq("barangay_id", barangayId ?? "00000000-0000-0000-0000-000000000000")
     .eq("role", "worker")
-    .in("worker_function", ["secretary", "officer", "captain"])
+    .eq("worker_function", "barangay_staff")
     .order("full_name")
   if (error) throw new Error(error.message)
   return ((data ?? []) as unknown as Profile[])

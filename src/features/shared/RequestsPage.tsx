@@ -13,7 +13,7 @@ import { useRequestRealtimeRefresh } from "@/hooks/useRequestRealtime"
 import { listRequests, requestRealtimeFilter } from "@/services/requestService"
 import { listCategories } from "@/services/configService"
 import { STATUS_LABELS } from "@/types"
-import type { RequestStatus, ViewId } from "@/types"
+import type { RequestPriority, RequestStatus, ViewId } from "@/types"
 
 const PAGE_SIZE = 10
 
@@ -39,6 +39,8 @@ export function RequestsPage({
   const { profile } = useAuth()
   const [search, setSearch] = useState(initialSearch)
   const [status, setStatus] = useState<RequestStatus | "">("")
+  const [priority, setPriority] = useState<RequestPriority | "">("")
+  const [sortBy, setSortBy] = useState<"newest" | "priority">("newest")
   const [page, setPage] = useState(1)
 
   useEffect(() => {
@@ -52,11 +54,13 @@ export function RequestsPage({
         ? listRequests(profile, {
             search,
             status,
+            priority,
+            sortBy,
             page,
             pageSize: PAGE_SIZE,
           })
         : Promise.resolve({ requests: [], total: 0, page: 1, pageSize: PAGE_SIZE }),
-    [profile?.id, profile?.role, profile?.worker_function, profile?.barangay_id, profile?.department_id, search, status, page],
+    [profile?.id, profile?.role, profile?.worker_function, profile?.barangay_id, profile?.department_id, search, status, priority, sortBy, page],
   )
   const requestFilter = profile ? requestRealtimeFilter(profile) : undefined
   useRequestRealtimeRefresh(refresh, {
@@ -112,6 +116,16 @@ export function RequestsPage({
               </option>
             ))}
           </select>
+          {profile?.role !== "resident" && (
+            <>
+              <select className="filter-select" aria-label="Filter by priority" value={priority} onChange={(event) => { setPriority(event.target.value as RequestPriority | ""); setPage(1) }}>
+                <option value="">All priorities</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+              </select>
+              <select className="filter-select" aria-label="Sort requests" value={sortBy} onChange={(event) => { setSortBy(event.target.value as "newest" | "priority"); setPage(1) }}>
+                <option value="newest">Newest first</option><option value="priority">Highest priority first</option>
+              </select>
+            </>
+          )}
           <button className="filter-button" onClick={refresh}>
             <Icon name="filter" size={14} /> {loading ? "Loading…" : "Refresh"}
           </button>

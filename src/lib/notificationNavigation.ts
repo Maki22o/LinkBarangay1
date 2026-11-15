@@ -36,7 +36,7 @@ export function notificationDestination(
   if (view === "appointments" && item.entity_id) {
     if (profile.role === "resident") {
       // Residents can inspect their own appointment within the inbox. This does
-      // not grant access to the secretary's scheduling module or its controls.
+      // not grant access to the staff scheduling module or its controls.
       return { view: "notifications", entityId: item.entity_id, record: "appointment", inline: true }
     }
     if (canAccessView(profile, view)) return { view, entityId: item.entity_id, record: "appointment" }

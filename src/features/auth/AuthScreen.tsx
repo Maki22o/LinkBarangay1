@@ -23,6 +23,7 @@ import {
 } from "@/services/requestService"
 import { listBarangays, listCategories } from "@/services/configService"
 import { useAuth } from "@/hooks/useAuth"
+import { submitResidentId, validateResidentId } from "@/services/residentVerificationService"
 import { supabase } from "@/lib/supabase"
 import { STATUS_LABELS } from "@/types"
 import type { Barangay, ServiceCategory, ViewId } from "@/types"
@@ -368,12 +369,14 @@ function RegisterForm({
   const [fullName, setFullName] = useState("")
   const [mobile, setMobile] = useState("")
   const [address, setAddress] = useState("")
+  const [residentIdFile, setResidentIdFile] = useState<File | null>(null)
   const [barangayId, setBarangayId] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirmPending, setConfirmPending] = useState(false)
+  const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false)
   const [accountType, setAccountType] = useState<AccountType>("resident")
 
   const submit = async (event: React.FormEvent) => {
@@ -382,6 +385,13 @@ function RegisterForm({
     if (!barangayId) {
       setError("Select your barangay so your requests can reach the right front desk.")
       return
+    }
+    if (accountType === "resident" && !residentIdFile) {
+      setError("Upload a valid ID showing your complete residential address.")
+      return
+    }
+    if (accountType === "resident" && residentIdFile) {
+      try { validateResidentId(residentIdFile) } catch (err) { setError((err as Error).message); return }
     }
     setBusy(true)
     try {
@@ -394,13 +404,17 @@ function RegisterForm({
         barangayId,
         accountType,
       })
+      setNeedsEmailConfirm(result.needsEmailConfirmation)
       if (result.needsEmailConfirmation) {
         setConfirmPending(true)
       } else if (accountType === "worker") {
         await signOut()
         setConfirmPending(true)
       } else {
+        if (!result.session?.user.id || !residentIdFile) throw new Error("Sign in again and upload your ID from My Profile to finish verification.")
+        await submitResidentId(result.session.user.id, residentIdFile)
         await refreshProfile()
+        setConfirmPending(true)
       }
     } catch (err) {
       setError((err as Error).message)
@@ -419,11 +433,13 @@ function RegisterForm({
               is waiting for administrator approval. You can sign in once it is
               approved.
             </>
+          ) : needsEmailConfirm ? (
+            <>
+              <strong>Email confirmation needed.</strong> Confirm the email, sign in, then upload your ID under My Profile before an administrator can approve your account.
+            </>
           ) : (
             <>
-              <strong>Almost done!</strong> We sent a confirmation link to{" "}
-              <b>{email}</b>. Confirm your email to activate your account, then
-              sign in.
+              <strong>Verification submitted.</strong> Your account is pending address and ID review. You can submit requests after an administrator approves it.
             </>
           )}
         </Notice>
@@ -473,6 +489,16 @@ function RegisterForm({
               ]}
             />
           </Field>
+          {accountType === "resident" && (
+            <Field label="Government-issued ID with full residential address" required hint="JPG, PNG, WebP, or PDF · up to 10 MB · visible only to administrators">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                required
+                onChange={(event) => setResidentIdFile(event.target.files?.[0] ?? null)}
+              />
+            </Field>
+          )}
           <Field label="Email address" required>
             <TextInput
               type="email"

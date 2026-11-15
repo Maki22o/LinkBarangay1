@@ -4,7 +4,7 @@
 // ============================================================================
 
 export type Role = "resident" | "worker" | "admin"
-export type WorkerFunction = "secretary" | "officer" | "captain" | "dispatcher" | "field"
+export type WorkerFunction = "barangay_staff" | "dispatcher" | "field"
 
 export type AccountStatus = "active" | "suspended" | "inactive" | "pending"
 
@@ -15,9 +15,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 }
 
 export const WORKER_FUNCTION_LABELS: Record<WorkerFunction, string> = {
-  secretary: "Front desk",
-  officer: "Barangay officer",
-  captain: "Supervisor",
+  barangay_staff: "Barangay Staff",
   dispatcher: "Dispatcher",
   field: "Field personnel",
 }
@@ -78,6 +76,8 @@ export type Permission =
   | "requests.resolve"
   | "requests.comment"
   | "requests.escalate"
+  | "requests.prioritize"
+  | "availability.manage"
   | "requests.close_own"
   // Secretary intake
   | "intake.encode"
@@ -111,6 +111,20 @@ export interface Profile {
   updated_at?: string | null
   barangay?: { id: string; name: string } | null
   department?: { id: string; name: string } | null
+  verification?: ResidentVerification | null
+}
+
+export interface ResidentVerification {
+  id: string
+  user_id: string
+  status: "pending" | "approved" | "rejected"
+  storage_path: string | null
+  file_name: string | null
+  mime_type: string | null
+  size_bytes: number | null
+  rejection_reason: string | null
+  submitted_at: string | null
+  reviewed_at: string | null
 }
 
 export interface ServiceRequest {
@@ -193,6 +207,8 @@ export interface Assignment {
   assigned_by: string | null
   department_id: string | null
   status: AssignmentStatus
+  appointment_status: "pending" | "scheduled" | "rescheduled" | "completed" | "cancelled"
+  duration_minutes: number | null
   decline_reason: string
   schedule_at: string | null
   deadline_at: string | null
@@ -327,6 +343,7 @@ export type ViewId =
   | "assignments"
   | "personnel"
   | "workload"
+  | "availability"
   | "sla-monitor"
   | "jobs"
   | "job-detail"

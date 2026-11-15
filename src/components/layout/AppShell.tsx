@@ -59,7 +59,9 @@ export function AppShell({
         </div>
         <div className="scope-label">{scopeLabelFor(profile.role)}</div>
         <nav>
-          {nav.map((item) => (
+          {nav.map((item, index) => (
+            <div key={item.label}>
+            {item.section && item.section !== nav[index - 1]?.section && <div className="nav-section-label">{item.section}</div>}
             <button
               className={
                 view === item.view ||
@@ -68,7 +70,6 @@ export function AppShell({
                   ? "active"
                   : ""
               }
-              key={item.label}
               aria-label={item.view === "notifications" ? unreadLabel : undefined}
               onClick={() => {
                 setView(item.view)
@@ -79,6 +80,7 @@ export function AppShell({
               <span>{item.label}</span>
               {item.view === "notifications" && badge && <b aria-hidden="true">{badge}</b>}
             </button>
+            </div>
           ))}
         </nav>
         <div className="sidebar-help">

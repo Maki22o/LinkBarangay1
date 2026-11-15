@@ -26,6 +26,7 @@ import {
   transitionRequest,
   uploadAttachment,
   getAttachmentUrl,
+  setRequestPriority,
 } from "@/services/requestService"
 import { listRequestAssignments } from "@/services/assignmentService"
 import { listDepartments } from "@/services/configService"
@@ -127,7 +128,8 @@ export function RequestDetailPage({
   const canResolve = hasPermission(profile, "requests.resolve")
   const canEscalate = hasPermission(profile, "requests.escalate")
   const canComment = hasPermission(profile, "requests.comment")
-  const staffBarangay = role === "worker" && ["secretary", "officer", "captain"].includes(profile?.worker_function ?? "")
+  const canPrioritize = hasPermission(profile, "requests.prioritize")
+  const staffBarangay = role === "worker" && profile?.worker_function === "barangay_staff"
 
   const active = (status: RequestStatus) => request.status === status
 
@@ -352,8 +354,19 @@ export function RequestDetailPage({
               )}
               <div>
                 <dt>Priority</dt>
-                <dd>
+                <dd style={{ display: "grid", gap: 8 }}>
                   <Priority level={request.priority} />
+                  {canPrioritize && (
+                    <Select
+                      value={["high", "medium", "low"].includes(request.priority) ? request.priority : "medium"}
+                      onChange={(value) => void run("Request priority updated.", () => setRequestPriority(request.id, value as "high" | "medium" | "low"))}
+                      options={[
+                        { value: "high", label: "High" },
+                        { value: "medium", label: "Medium" },
+                        { value: "low", label: "Low" },
+                      ]}
+                    />
+                  )}
                 </dd>
               </div>
               {request.due_at && (
@@ -382,26 +395,26 @@ export function RequestDetailPage({
             <p>{request.barangay?.name ?? ""}</p>
           </section>
 
-          {((role === "worker" && profile?.worker_function === "dispatcher") || role === "admin" || staffBarangay) && (
+          {(isOwner || (role === "worker" && profile?.worker_function === "dispatcher") || role === "admin" || staffBarangay) && (
             <section className="panel assigned-panel">
-              <h2>Field assignments</h2>
+              <h2>{isOwner ? "Appointment and service schedule" : "Field assignments"}</h2>
               {assignments.loading ? (
                 <LoadingState />
               ) : !assignments.data || assignments.data.length === 0 ? (
-                <p className="muted-note">No field personnel assigned yet.</p>
+                <p className="muted-note">No appointment or field assignment has been scheduled yet.</p>
               ) : (
                 assignments.data.map((assignment) => (
                   <div key={assignment.id}>
-                    <span className="person-avatar">
+                    {!isOwner && <span className="person-avatar">
                       {(assignment.assignee?.full_name ?? "?").slice(0, 2).toUpperCase()}
-                    </span>
+                    </span>}
                     <p>
-                      <strong>{assignment.assignee?.full_name ?? "Field personnel"}</strong>
+                      {!isOwner && <strong>{assignment.assignee?.full_name ?? "Field personnel"}</strong>}
                       <small>
-                        {assignmentStateLabel(assignment)}
-                        {assignment.deadline_at
-                          ? ` · due ${formatDateTime(assignment.deadline_at)}`
-                          : ""}
+                        {isOwner ? `Appointment ${assignment.appointment_status}` : assignmentStateLabel(assignment)}
+                        {assignment.schedule_at ? ` · ${formatDateTime(assignment.schedule_at)}` : ""}
+                        {assignment.deadline_at ? ` · estimated completion ${formatDateTime(assignment.deadline_at)}` : ""}
+                        {assignment.duration_minutes ? ` · ${assignment.duration_minutes} minutes` : ""}
                       </small>
                     </p>
                   </div>
@@ -822,14 +835,14 @@ function AssignFieldModal({
             />
           </Field>
           <div className="form-grid">
-            <Field label="Scheduled start (optional)">
+            <Field label="Appointment date and time (optional)">
               <input
                 type="datetime-local"
                 value={scheduleAt}
                 onChange={(event) => setScheduleAt(event.target.value)}
               />
             </Field>
-            <Field label="Deadline (optional)">
+            <Field label="Estimated completion date and time">
               <input
                 type="datetime-local"
                 value={deadlineAt}
@@ -837,6 +850,9 @@ function AssignFieldModal({
               />
             </Field>
           </div>
+          {scheduleAt && deadlineAt && new Date(deadlineAt) > new Date(scheduleAt) && (
+            <p className="field-help">Estimated service duration: {Math.ceil((new Date(deadlineAt).getTime() - new Date(scheduleAt).getTime()) / 60000)} minutes. Availability and overlapping field appointments are checked before saving.</p>
+          )}
           <Field label="Work instructions (optional)">
             <TextArea value={notes} onChange={setNotes} rows={3} />
           </Field>

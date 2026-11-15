@@ -1,6 +1,5 @@
 // ============================================================================
-// LinkBarangay — adaptive staff dashboard (secretary, officer, captain,
-// dispatcher). Metrics are live counts from lb_service_requests within the
+// LinkBarangay — barangay staff and dispatcher dashboards. Metrics are live counts from lb_service_requests within the
 // caller's RLS scope; field and admin have their own dashboards.
 // ============================================================================
 
@@ -24,20 +23,10 @@ interface QueueSlice {
 }
 
 const SLICES: Record<string, QueueSlice> = {
-  secretary: {
-    title: "Incoming requests",
-    subtitle: "New submissions awaiting intake",
-    statuses: ["submitted"],
-  },
-  officer: {
-    title: "Verification queue",
-    subtitle: "Requests waiting for your review",
-    statuses: ["submitted", "for_verification", "needs_information"],
-  },
-  captain: {
-    title: "Approval queue",
-    subtitle: "Inspections and escalated concerns",
-    statuses: ["for_inspection"],
+  barangay_staff: {
+    title: "Barangay request workflow",
+    subtitle: "Intake, verification, priority review, escalations, and approvals",
+    statuses: ["submitted", "for_verification", "needs_information", "for_inspection"],
   },
   dispatcher: {
     title: "Ready to assign",
@@ -54,7 +43,7 @@ export function StaffDashboard({
   openRequest: (id: string) => void
 }) {
   const { profile } = useAuth()
-  const role = (profile?.worker_function ?? "officer") as WorkerFunction
+  const role = profile?.worker_function ?? "barangay_staff"
   const scopeName =
     profile?.barangay?.name ? `Barangay ${profile.barangay.name}` : profile?.department?.name ?? ""
 
@@ -70,14 +59,14 @@ export function StaffDashboard({
   })
   const staff = useAsync(
     () =>
-      role === "secretary" || role === "officer" || role === "captain"
+      role === "barangay_staff"
         ? listBarangayStaff(profile?.barangay_id ?? null)
         : listFieldPersonnel(profile?.department_id ?? null),
     [profile?.id, profile?.role, profile?.worker_function, profile?.barangay_id, profile?.department_id],
   )
   const appointments = useAsync(
     () =>
-      role === "secretary" ? listAppointments(profile?.barangay_id ?? null) : Promise.resolve([]),
+      role === "barangay_staff" ? listAppointments(profile?.barangay_id ?? null) : Promise.resolve([]),
     [profile?.id, profile?.role, profile?.worker_function, profile?.barangay_id, profile?.department_id],
   )
 
@@ -98,37 +87,24 @@ export function StaffDashboard({
     (a) => new Date(a.scheduled_at).toDateString() === today && a.status === "scheduled",
   )
 
-  const slice = SLICES[role] ?? SLICES.officer
+  const slice = SLICES[role] ?? SLICES.barangay_staff
   const queue = all
     .filter((r) =>
-      slice.statuses.includes(r.status) || (role === "captain" && r.escalation_count > 0),
+      slice.statuses.includes(r.status) || (role === "barangay_staff" && r.escalation_count > 0),
     )
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, 6)
 
   const metrics =
-    role === "secretary"
+    role === "barangay_staff"
       ? [
           { label: "New (submitted)", value: count("submitted"), icon: "file" as const },
           { label: "In verification", value: count("for_verification") + count("needs_information"), tone: "amber" as const, icon: "shield" as const },
+          { label: "For inspection", value: count("for_inspection"), tone: "purple" as const, icon: "eye" as const },
           { label: "Appointments today", value: appointmentsToday.length, tone: "purple" as const, icon: "clock" as const },
-          { label: "Barangay staff", value: staff.data?.length ?? 0, tone: "green" as const, icon: "users" as const },
+          { label: "Escalated / overdue", value: escalated.length + overdue.length, tone: "red" as const, icon: "alert" as const },
         ]
-      : role === "officer"
-        ? [
-            { label: "Awaiting verification", value: count("submitted") + count("for_verification"), icon: "shield" as const },
-            { label: "Needs information", value: count("needs_information"), tone: "amber" as const, icon: "help" as const },
-            { label: "Escalated", value: escalated.length, tone: "red" as const, icon: "alert" as const },
-            { label: "Resolved (recent)", value: count("resolved") + count("closed"), tone: "green" as const, icon: "check" as const },
-          ]
-        : role === "captain"
-          ? [
-              { label: "For inspection", value: count("for_inspection"), icon: "eye" as const },
-              { label: "Escalated concerns", value: escalated.length, tone: "red" as const, icon: "alert" as const },
-              { label: "Open requests", value: all.filter((r) => !["resolved", "closed", "rejected"].includes(r.status)).length, icon: "file" as const },
-              { label: "Overdue", value: overdue.length, tone: "amber" as const, icon: "clock" as const },
-            ]
-          : [
+      : [
               { label: "Ready to assign", value: count("verified") + count("assigned"), icon: "route" as const },
               { label: "In progress", value: count("in_progress"), tone: "amber" as const, icon: "briefcase" as const },
               { label: "Overdue", value: overdue.length, tone: "red" as const, icon: "alert" as const },
@@ -141,20 +117,14 @@ export function StaffDashboard({
         <div>
           <span className="page-kicker">{scopeName.toUpperCase()}</span>
           <h1>
-            {role === "secretary"
-              ? "Front Desk Overview"
-              : role === "officer"
-                ? "Officer Dashboard"
-                : role === "captain"
-                  ? "Supervisor Dashboard"
-                  : "Operations Dashboard"}
+            {role === "barangay_staff" ? "Barangay Staff Dashboard" : role === "dispatcher" ? "Operations Dashboard" : "Field Team Dashboard"}
           </h1>
           <p>
             {scopeName ? `${scopeName} · ` : ""}
             {all.length} request{all.length === 1 ? "" : "s"} in your scope.
           </p>
         </div>
-        {role === "secretary" && (
+        {role === "barangay_staff" && (
           <Button icon="plus" onClick={() => setView("walk-in")}>
             Encode walk-in request
           </Button>
@@ -177,13 +147,7 @@ export function StaffDashboard({
             <button
               onClick={() =>
                 setView(
-                  role === "officer"
-                    ? "verify-queue"
-                    : role === "captain"
-                      ? "approvals"
-                      : role === "dispatcher"
-                        ? "dept-queue"
-                        : "intake",
+                  role === "dispatcher" ? "dept-queue" : role === "field" ? "jobs" : "intake",
                 )
               }
             >
@@ -249,7 +213,7 @@ export function StaffDashboard({
         <section className="panel activity-panel">
           <div className="panel-head">
             <div>
-              <h2>{role === "captain" || role === "officer" ? "Personnel" : role === "dispatcher" ? "Field team" : "Barangay team"}</h2>
+              <h2>{role === "barangay_staff" ? "Barangay personnel" : role === "dispatcher" ? "Field team" : "Operations team"}</h2>
               <p>{staff.data?.length ?? 0} active</p>
             </div>
           </div>
@@ -278,7 +242,7 @@ export function StaffDashboard({
         </section>
       </div>
 
-      {(role === "captain" || role === "officer" || role === "dispatcher") && overdue.length > 0 && (
+      {(role === "barangay_staff" || role === "dispatcher") && overdue.length > 0 && (
         <section className="panel alert-list" style={{ marginTop: 16 }}>
           <div className="panel-head">
             <div>
