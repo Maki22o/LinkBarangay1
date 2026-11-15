@@ -104,12 +104,12 @@ function GoogleMapsLinkPicker({ value, onChange }: { value: RequestLocation | nu
     const coordinateMatch = nextUrl.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/) ?? nextUrl.match(/[?&]q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/)
     onChange({ address: nextAddress.trim(), latitude: coordinateMatch ? Number(coordinateMatch[1]) : null, longitude: coordinateMatch ? Number(coordinateMatch[2]) : null, barangay: "", city: "", province: "", map_url: nextUrl.trim() })
   }
-  const preview = address ? `https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed` : ""
+  const preview = `https://www.google.com/maps?q=${encodeURIComponent(address || "Philippines")}&output=embed`
   return <div className="map-picker">
     <Notice tone="info">Use a Google Maps share link instead of the interactive map. Paste the exact address and link so personnel can open the location.</Notice>
     <label className="map-search-input"><Icon name="pin" size={16} /><input value={address} onChange={(event) => update(event.target.value, mapUrl)} placeholder="Complete address of the concern" aria-label="Complete address" /></label>
     <label className="map-search-input"><Icon name="search" size={16} /><input value={mapUrl} onChange={(event) => update(address, event.target.value)} placeholder="Paste Google Maps share link" aria-label="Google Maps link" /></label>
-    {preview && <iframe className="google-map" title="Google Maps location preview" src={preview} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />}
+    <iframe className="google-map" title="Google Maps location preview" src={preview} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
     {value && <div className="location-summary"><strong>Saved map location</strong><span>{value.address}</span><a href={value.map_url} target="_blank" rel="noreferrer">Open in Google Maps <Icon name="arrow" size={13} /></a></div>}
   </div>
 }
