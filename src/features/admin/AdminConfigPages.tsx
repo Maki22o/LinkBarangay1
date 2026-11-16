@@ -6,12 +6,15 @@
 
 import { useEffect, useState } from "react"
 import { Icon, type IconName } from "@/components/common/Icon"
-import { Button, Status, formatDateTime } from "@/components/common/ui"
+import { Button, MetricCard, Status, formatDateTime } from "@/components/common/ui"
 import { Modal } from "@/components/common/Modal"
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/common/States"
 import { Field, Select, TextArea, TextInput } from "@/components/forms/fields"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
+import { useRequestRealtimeRefresh } from "@/hooks/useRequestRealtime"
+import { FieldBookingCalendar } from "@/features/dispatcher/FieldBookingCalendar"
+import { getDispatchOverview } from "@/services/schedulingService"
 import { supabase } from "@/lib/supabase"
 import { ROLE_PERMISSIONS } from "@/permissions/permissions"
 import { hasPermission } from "@/permissions/permissions"
@@ -208,6 +211,7 @@ export function CategoriesPage() {
           description: row.description,
           department_id: row.department_id,
           sla_hours: row.sla_hours,
+          field_appointment_minutes: row.field_appointment_minutes ?? null,
           is_active: row.is_active,
         })
       }}
@@ -218,6 +222,7 @@ export function CategoriesPage() {
         { key: "sla_hours", label: "SLA hours", kind: "number" },
       ]}
       extraField={(value, update) => (
+        <>
         <Field label="Routed department">
           <Select
             value={value.department_id ?? ""}
@@ -228,6 +233,11 @@ export function CategoriesPage() {
             ]}
           />
         </Field>
+        <Field label="Field appointment duration in minutes" hint="15–480 minutes. Leave empty to disable resident appointment requests.">
+          <input type="number" min={15} max={480} step={1} value={value.field_appointment_minutes ?? ""}
+            onChange={(event) => update({ ...value, field_appointment_minutes: event.target.value ? Number(event.target.value) : null })} />
+        </Field>
+        </>
       )}
       blank={{
         name: "",
@@ -235,6 +245,7 @@ export function CategoriesPage() {
         description: "",
         department_id: null,
         sla_hours: 72,
+        field_appointment_minutes: null,
         is_active: true,
       }}
     />
@@ -627,7 +638,7 @@ function AdminSubPage({
 // ---------------------------------------------------------------------------
 // Reports & analytics (admin: system-wide; uses the caller's RLS scope)
 // ---------------------------------------------------------------------------
-export function ReportsPage() {
+export function ReportsPage({ openRequest }: { openRequest: (id: string) => void }) {
   const { profile } = useAuth()
   const canAudit = hasPermission(profile, "audit.view")
   const report = useAsync(async () => {
@@ -702,6 +713,8 @@ export function ReportsPage() {
         </Button>
       </div>
 
+      {profile?.role === "admin" && <DispatchMonitoring openRequest={openRequest} />}
+
       <div className="dashboard-grid">
         <section className="panel span-two">
           <div className="panel-head">
@@ -772,6 +785,47 @@ export function ReportsPage() {
         </Notice>
       )}
     </div>
+  )
+}
+
+function DispatchMonitoring({ openRequest }: { openRequest: (id: string) => void }) {
+  const overview = useAsync(getDispatchOverview, [])
+  useRequestRealtimeRefresh(overview.refresh)
+  useRequestRealtimeRefresh(overview.refresh, { table: "lb_assignments" })
+  useRequestRealtimeRefresh(overview.refresh, { table: "lb_appointments" })
+  const [showHistory, setShowHistory] = useState(false)
+  const data = overview.data
+  return (
+    <section className="schedule-form">
+      <div className="panel schedule-form">
+        <div className="panel-head">
+          <div><h2>Field scheduling and workloads</h2></div>
+          <Button variant="secondary" onClick={() => setShowHistory((shown) => !shown)}>
+            {showHistory ? "Hide appointment history" : "View appointment history"}
+          </Button>
+        </div>
+        {overview.error && <ErrorState message={overview.error} onRetry={overview.refresh} />}
+        {!data && overview.loading && <LoadingState />}
+        {data && <>
+          <div className="metrics-grid">
+            <MetricCard label="Scheduled appointments" value={data.scheduled} icon="clock" />
+            <MetricCard label="Pending appointments" value={data.pending} icon="clock" tone="amber" />
+            <MetricCard label="Active jobs" value={data.active} icon="briefcase" />
+            <MetricCard label="Completed jobs" value={data.completed} icon="check" tone="green" />
+            <MetricCard label="Overdue jobs" value={data.overdue} icon="alert" tone="amber" />
+            <MetricCard label="Unassigned requests" value={data.unassigned} icon="route" />
+            <MetricCard label="High and urgent requests" value={data.priority} icon="alert" />
+          </div>
+          {data.workloads.length > 0 && <div className="table-wrap"><table>
+            <thead><tr><th>Personnel</th><th>Department</th><th>Open jobs</th></tr></thead>
+            <tbody>{data.workloads.map((worker) => <tr key={worker.id}>
+              <td>{worker.name}</td><td>{worker.department ?? "—"}</td><td>{worker.active}</td>
+            </tr>)}</tbody>
+          </table></div>}
+        </>}
+      </div>
+      {showHistory && <FieldBookingCalendar departmentId={null} openRequest={openRequest} includeCapacity={false} />}
+    </section>
   )
 }
 

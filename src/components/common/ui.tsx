@@ -4,8 +4,8 @@
 
 import type { ReactNode } from "react"
 import { Icon, type IconName } from "@/components/common/Icon"
-import { STATUS_LABELS } from "@/types"
-import type { RequestStatus } from "@/types"
+import { PRIORITY_LABELS, STATUS_LABELS } from "@/types"
+import type { RequestPriority, RequestStatus } from "@/types"
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
@@ -66,7 +66,7 @@ export function Status({ status }: { status: string }) {
 }
 
 export function Priority({ level }: { level: string }) {
-  return <em className={`priority ${level}`}>{level}</em>
+  return <em className={`priority ${level === "medium" ? "normal" : level}`}>{PRIORITY_LABELS[level as RequestPriority] ?? level}</em>
 }
 
 export function MetricCard({

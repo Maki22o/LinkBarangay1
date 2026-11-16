@@ -32,5 +32,6 @@ export function isActionableAssignment(job: Assignment, departmentId?: string | 
 
 export function assignmentStateLabel(job: Assignment): string {
   if (ACTIVE.has(job.status) && !isActionableAssignment(job)) return "Previous assignment"
+  if (job.status === "pending") return "Assigned"
   return job.status.replaceAll("_", " ")
 }

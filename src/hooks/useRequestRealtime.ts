@@ -6,12 +6,13 @@ let subscriptionSequence = 0
 /** Refresh a scoped request view after a visible database change or reconnect. */
 export function useRequestRealtimeRefresh(
   onChange: () => void,
-  options: { enabled?: boolean; filter?: string } = {},
+  options: { enabled?: boolean; filter?: string; table?: "lb_service_requests" | "lb_assignments" | "lb_appointments" } = {},
 ) {
   const callback = useRef(onChange)
   callback.current = onChange
   const enabled = options.enabled ?? true
   const filter = options.filter
+  const table = options.table ?? "lb_service_requests"
 
   useEffect(() => {
     if (!enabled) return
@@ -29,7 +30,7 @@ export function useRequestRealtimeRefresh(
       .on("postgres_changes", {
         event: "*",
         schema: "public",
-        table: "lb_service_requests",
+        table,
         ...(filter ? { filter } : {}),
       }, refresh)
       .subscribe((status) => {
@@ -46,5 +47,5 @@ export function useRequestRealtimeRefresh(
       window.removeEventListener("online", refresh)
       void supabase.removeChannel(channel)
     }
-  }, [enabled, filter])
+  }, [enabled, filter, table])
 }

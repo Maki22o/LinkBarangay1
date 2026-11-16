@@ -5,13 +5,19 @@
 
 import { useState } from "react"
 import { Icon } from "@/components/common/Icon"
-import { Button, MetricCard, Status, formatRef, formatDateTime } from "@/components/common/ui"
+import { Button, MetricCard, Priority, Status, formatRef, formatDateTime } from "@/components/common/ui"
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/States"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
 import { useRequestRealtimeRefresh } from "@/hooks/useRequestRealtime"
 import { assignmentStateLabel, isActionableAssignment } from "@/lib/assignmentState"
 import { listRequests, requestRealtimeFilter } from "@/services/requestService"
+import { Field, Select } from "@/components/forms/fields"
+import { manilaDateTime } from "@/lib/dateTime"
+import { listCategories } from "@/services/configService"
+import { listDispatchQueue } from "@/services/schedulingService"
+import { FieldBookingCalendar } from "./FieldBookingCalendar"
+import { DISPATCH_PRIORITIES, PRIORITY_LABELS, STATUS_LABELS } from "@/types"
 import { listDepartmentAssignments } from "@/services/assignmentService"
 import { listFieldPersonnel } from "@/services/profileService"
 import type { ViewId } from "@/types"
@@ -24,25 +30,20 @@ export function DeptQueuePage({
   openRequest: (id: string) => void
 }) {
   const { profile } = useAuth()
+  const [filters, setFilters] = useState({ status: "", priority: "", category: "", submitted: "", scheduled: "", sort: "priority", page: 0 })
+  const change = (key: Exclude<keyof typeof filters, "page">, value: string) =>
+    setFilters((current) => ({ ...current, [key]: value, page: 0 }))
+  const categories = useAsync(() => listCategories(true), [])
   const list = useAsync(
-    () =>
-      profile
-        ? listRequests(profile, { pageSize: 100 })
-        : Promise.resolve({ requests: [], total: 0, page: 1, pageSize: 100 }),
-    [profile?.id, profile?.role, profile?.worker_function, profile?.barangay_id, profile?.department_id],
+    () => profile?.department_id ? listDispatchQueue(profile.department_id, filters) : Promise.resolve({ rows: [], hasNext: false }),
+    [profile?.department_id, filters],
   )
   const requestFilter = profile ? requestRealtimeFilter(profile) : undefined
   useRequestRealtimeRefresh(list.refresh, {
     enabled: Boolean(profile && requestFilter),
     filter: requestFilter,
   })
-
-  if (list.loading) return <LoadingState label="Loading department queue…" />
-  if (list.error) return <ErrorState message={list.error} onRetry={list.refresh} />
-
-  const rows = (list.data?.requests ?? [])
-    .filter((r) => ["verified", "assigned", "in_progress"].includes(r.status))
-    .sort((a, b) => (a.due_at ?? "").localeCompare(b.due_at ?? ""))
+  const rows = list.data?.rows ?? []
 
   return (
     <div>
@@ -51,12 +52,33 @@ export function DeptQueuePage({
           <span className="page-kicker">DEPARTMENT OPERATIONS</span>
           <h1>Department Queue</h1>
           <p>
-            Verified and routed requests for {profile?.department?.name ?? "your department"}.
+            Pending appointments and active requests for {profile?.department?.name ?? "your department"}.
           </p>
         </div>
+        <Button variant="secondary" icon="clock" onClick={() => setView("assignments")}>Appointment calendar</Button>
       </div>
       <div className="panel">
-        {rows.length === 0 ? (
+        <div className="schedule-controls">
+          <Field label="Status"><Select value={filters.status} onChange={(value) => change("status", value)} options={[
+            { value: "", label: "All statuses" }, { value: "pending", label: "Pending appointment" },
+            ...(["verified", "assigned", "in_progress", "for_inspection"] as const).map((value) => ({ value, label: STATUS_LABELS[value] })),
+          ]} /></Field>
+          <Field label="Priority"><Select value={filters.priority} onChange={(value) => change("priority", value)} options={[
+            { value: "", label: "All priorities" }, ...DISPATCH_PRIORITIES.map((value) => ({ value, label: PRIORITY_LABELS[value] })),
+          ]} /></Field>
+          <Field label="Category"><Select value={filters.category} onChange={(value) => change("category", value)} options={[
+            { value: "", label: "All categories" }, ...(categories.data ?? []).map(({ id, name }) => ({ value: id, label: name })),
+          ]} /></Field>
+          <Field label="Submitted on"><input type="date" value={filters.submitted} onChange={(event) => change("submitted", event.target.value)} /></Field>
+          <Field label="Scheduled on"><input type="date" value={filters.scheduled} onChange={(event) => change("scheduled", event.target.value)} /></Field>
+          <Field label="Sort by"><Select value={filters.sort} onChange={(value) => change("sort", value)} options={[
+            { value: "priority", label: "Highest priority" }, { value: "created_at", label: "Most recent" }, { value: "scheduled_at", label: "Next scheduled" },
+            { value: "status", label: "Status" }, { value: "category_name", label: "Category" },
+          ]} /></Field>
+        </div>
+        {list.error ? <ErrorState message={list.error} onRetry={list.refresh} /> :
+          list.loading ? <LoadingState label="Loading department queue…" /> :
+          rows.length === 0 ? (
           <EmptyState
             icon="check"
             title="Queue is clear"
@@ -70,42 +92,44 @@ export function DeptQueuePage({
                   <th>Reference</th>
                   <th>Request</th>
                   <th>Location</th>
-                  <th>Due</th>
+                  <th>Appointment and personnel</th>
+                  <th>Estimated completion</th>
                   <th>Status</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {rows.map((request) => {
-                  const overdue =
-                    request.due_at &&
-                    new Date(request.due_at) < new Date() &&
-                    request.status !== "in_progress"
+                  const overdue = request.estimated_completion_at && Date.parse(request.estimated_completion_at) < Date.now() &&
+                    ["verified", "assigned", "in_progress"].includes(request.status)
                   return (
                     <tr key={request.id}>
-                      <td className="ref">{formatRef(request.reference)}</td>
+                      <td className="ref">{formatRef(request.reference)}<small className="queue-detail">{manilaDateTime(request.created_at)}</small></td>
                       <td>
                         <div className="request-cell">
                           <strong>{request.title}</strong>
-                          <small>{request.category?.name ?? "Uncategorized"}</small>
+                          <small>{request.category_name ?? "Uncategorized"} · {request.resident_name ?? "Walk-in"}</small>
+                          <small className="queue-description">{request.description}</small>
                         </div>
                       </td>
                       <td>{request.location || "—"}</td>
                       <td>
-                        {request.due_at ? formatDateTime(request.due_at) : "—"}
-                        {overdue && <em className="priority high"> overdue</em>}
+                        {request.appointment_status && <Status status={request.appointment_status} />}
+                        <p>{manilaDateTime(request.scheduled_at ?? request.preferred_at)}</p>
+                        <small>{request.personnel_name ?? "Unassigned"}</small>
+                      </td>
+                      <td>
+                        {request.estimated_completion_at ? manilaDateTime(request.estimated_completion_at) : "Awaiting estimate"}
+                        {overdue && <Status status="Overdue" />}
                       </td>
                       <td>
                         <Status status={request.status} />
+                        <Priority level={request.priority} />
                       </td>
                       <td>
-                        <button
-                          className="icon-button"
-                          aria-label="Open request"
-                          onClick={() => openRequest(request.id)}
-                        >
-                          <Icon name="eye" size={15} />
-                        </button>
+                        <Button variant="secondary" onClick={() => openRequest(request.id)}>
+                          {request.appointment_status === "pending" ? "Review" : request.personnel_name ? "Open request" : "Assign personnel"}
+                        </Button>
                       </td>
                     </tr>
                   )
@@ -114,6 +138,12 @@ export function DeptQueuePage({
             </table>
           </div>
         )}
+        {(filters.page > 0 || list.data?.hasNext) && <div className="schedule-pagination">
+          <Button variant="secondary" disabled={filters.page === 0 || list.loading}
+            onClick={() => setFilters({ ...filters, page: filters.page - 1 })}>Previous page</Button>
+          <Button variant="secondary" disabled={!list.data?.hasNext || list.loading}
+            onClick={() => setFilters({ ...filters, page: filters.page + 1 })}>Next page</Button>
+        </div>}
       </div>
     </div>
   )
@@ -132,6 +162,12 @@ export function AssignmentsPage({
     () => listDepartmentAssignments(profile?.department_id ?? null),
     [profile?.id, profile?.department_id],
   )
+  useRequestRealtimeRefresh(assignments.refresh, {
+    enabled: Boolean(profile?.department_id), table: "lb_assignments", filter: `department_id=eq.${profile?.department_id}`,
+  })
+  useRequestRealtimeRefresh(assignments.refresh, {
+    enabled: Boolean(profile?.department_id), filter: `department_id=eq.${profile?.department_id}`,
+  })
   const [filter, setFilter] = useState<"active" | "completed" | "declined" | "all">("active")
 
   if (assignments.loading) return <LoadingState label="Loading assignments…" />
@@ -142,7 +178,7 @@ export function AssignmentsPage({
   const rows = all.filter((job) => {
     if (filter === "active") return isActionableAssignment(job)
     if (filter === "completed") return job.status === "completed"
-    if (filter === "declined") return job.status === "declined"
+    if (filter === "declined") return ["declined", "unable_to_complete", "needs_rescheduling", "cancelled"].includes(job.status)
     return true
   })
 
@@ -155,11 +191,12 @@ export function AssignmentsPage({
           <p>Jobs dispatched to field personnel. Assign new jobs from a request's detail page.</p>
         </div>
       </div>
+      <FieldBookingCalendar departmentId={profile?.department_id ?? null} openRequest={openRequest} />
       <div className="panel">
         <div className="queue-tabs">
           {(["active", "completed", "declined", "all"] as const).map((tab) => (
             <button className={filter === tab ? "active" : ""} key={tab} onClick={() => setFilter(tab)}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === "declined" ? "Needs attention" : tab.charAt(0).toUpperCase() + tab.slice(1)}
               <b>
                 {
                   all.filter((job) =>
@@ -168,7 +205,7 @@ export function AssignmentsPage({
                       : tab === "completed"
                         ? job.status === "completed"
                         : tab === "declined"
-                          ? job.status === "declined"
+                          ? ["declined", "unable_to_complete", "needs_rescheduling", "cancelled"].includes(job.status)
                           : true,
                   ).length
                 }
@@ -188,7 +225,8 @@ export function AssignmentsPage({
                     <em className={`priority ${job.status === "declined" ? "high" : "normal"}`}>
                       {assignmentStateLabel(job)}
                     </em>
-                    {job.status === "declined" && job.decline_reason && (
+                    {job.request && <Priority level={job.request.priority} />}
+                    {job.decline_reason && (
                       <small style={{ marginLeft: 8 }}>{job.decline_reason}</small>
                     )}
                   </span>
@@ -196,7 +234,7 @@ export function AssignmentsPage({
                   <p>
                     <Icon name="user" size={12} /> {job.assignee?.full_name ?? "Unknown"} ·{" "}
                     <Icon name="clock" size={12} />{" "}
-                    {job.deadline_at ? formatDateTime(job.deadline_at) : "no deadline"}
+                    {manilaDateTime(job.schedule_at)} · Estimated completion {manilaDateTime(job.request?.estimated_completion_at ?? job.deadline_at)}
                   </p>
                 </div>
                 <div className="job-time">

@@ -119,7 +119,7 @@ export function RequestsPage({
           {profile?.role !== "resident" && (
             <>
               <select className="filter-select" aria-label="Filter by priority" value={priority} onChange={(event) => { setPriority(event.target.value as RequestPriority | ""); setPage(1) }}>
-                <option value="">All priorities</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+                <option value="">All priorities</option><option value="urgent">Urgent</option><option value="high">High</option><option value="normal">Normal</option><option value="low">Low</option>
               </select>
               <select className="filter-select" aria-label="Sort requests" value={sortBy} onChange={(event) => { setSortBy(event.target.value as "newest" | "priority"); setPage(1) }}>
                 <option value="newest">Newest first</option><option value="priority">Highest priority first</option>

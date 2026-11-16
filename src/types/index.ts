@@ -43,7 +43,7 @@ export const STATUS_LABELS: Record<RequestStatus, string> = {
 export const PRIORITY_LABELS: Record<RequestPriority, string> = {
   low: "Low",
   normal: "Normal",
-  medium: "Medium",
+  medium: "Normal",
   high: "High",
   urgent: "Urgent",
 }
@@ -61,6 +61,8 @@ export type RequestStatus =
   | "rejected"
 
 export type RequestPriority = "low" | "normal" | "medium" | "high" | "urgent"
+export const DISPATCH_PRIORITIES = ["low", "normal", "high", "urgent"] as const
+export type DispatchPriority = (typeof DISPATCH_PRIORITIES)[number]
 
 export type Permission =
   // Requests
@@ -150,6 +152,9 @@ export interface ServiceRequest {
   assigned_to: string | null
   assigned_by: string | null
   due_at: string | null
+  estimated_completion_at?: string | null
+  estimated_duration_minutes?: number | null
+  estimate_recorded_at?: string | null
   needs_info_by: string | null
   needs_info_message: string
   rejection_reason: string
@@ -159,7 +164,7 @@ export interface ServiceRequest {
   escalation_count: number
   created_at: string
   updated_at: string
-  category?: { id: string; name: string; slug: string; sla_hours: number } | null
+  category?: { id: string; name: string; slug: string; sla_hours: number; field_appointment_minutes?: number | null } | null
   barangay?: { id: string; name: string } | null
   department?: { id: string; name: string } | null
   submitter?: Pick<Profile, "id" | "full_name" | "email" | "mobile" | "address"> | null
@@ -201,6 +206,9 @@ export type AssignmentStatus =
   | "in_progress"
   | "completed"
   | "verified"
+  | "cancelled"
+  | "unable_to_complete"
+  | "needs_rescheduling"
 
 export interface Assignment {
   id: string
@@ -219,6 +227,9 @@ export interface Assignment {
   accepted_at: string | null
   completed_at: string | null
   notes: string
+  progress_notes?: string
+  delay_reason?: string
+  completion_remarks?: string
   created_at: string
   updated_at: string
   request?: ServiceRequest | null
@@ -249,6 +260,7 @@ export interface ServiceCategory {
   department_id: string | null
   required_documents: string[]
   sla_hours: number
+  field_appointment_minutes?: number | null
   is_active: boolean
   department?: { id: string; name: string } | null
 }

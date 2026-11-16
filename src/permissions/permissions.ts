@@ -21,8 +21,8 @@ const ADMIN_PERMISSIONS: Permission[] = [
 ]
 const WORKER_PERMISSIONS: Record<WorkerFunction, Permission[]> = {
   barangay_staff: ["requests.view_barangay", "requests.create", "requests.verify", "requests.reject", "requests.route", "requests.comment", "requests.escalate", "requests.prioritize", "requests.resolve", "intake.encode", "intake.verify_documents", "intake.appointments", "intake.resident_records", "personnel.view", "reports.view"],
-  dispatcher: ["requests.view_department", "requests.route", "requests.assign", "requests.comment", "requests.escalate", "personnel.view", "reports.view", "availability.manage"],
-  field: ["requests.view_own", "requests.update_progress", "requests.comment"],
+  dispatcher: ["requests.view_department", "requests.route", "requests.assign", "requests.comment", "requests.escalate", "requests.prioritize", "personnel.view", "reports.view", "availability.manage"],
+  field: ["requests.view_own", "requests.update_progress", "requests.comment", "availability.manage"],
 }
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
@@ -157,6 +157,7 @@ export const NAV_BY_WORKER_FUNCTION: Record<WorkerFunction, NavItem[]> = {
   field: [
     { label: "My Day", icon: "home", view: "dashboard" },
     { label: "Assigned Jobs", icon: "briefcase", view: "jobs" },
+    { label: "My Availability", icon: "clock", view: "availability" },
     { label: "Notifications", icon: "bell", view: "notifications" },
     { label: "My Profile", icon: "user", view: "profile" },
   ],

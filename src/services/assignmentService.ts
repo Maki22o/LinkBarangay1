@@ -9,10 +9,10 @@ import type { Assignment } from "@/types"
 
 const ASSIGNMENT_SELECT = `
   id, request_id, assigned_to, assigned_by, department_id, status, appointment_status, duration_minutes, decline_reason,
-  schedule_at, deadline_at, accepted_at, completed_at, notes, created_at, updated_at,
+  schedule_at, deadline_at, accepted_at, completed_at, notes, progress_notes, delay_reason, completion_remarks, created_at, updated_at,
   request:lb_service_requests(
-    id, reference, title, status, priority, location, category_id, department_id, assigned_to,
-    due_at, created_at,
+    id, reference, title, description, status, priority, location, category_id, department_id, assigned_to,
+    submitter_name, is_anonymous, due_at, estimated_completion_at, estimated_duration_minutes, estimate_recorded_at, created_at,
     category:lb_service_categories(id, name),
     department:lb_departments(id, name)
   ),
@@ -77,6 +77,20 @@ export async function getAssignment(id: string): Promise<Assignment | null> {
 
 export async function acceptAssignment(assignmentId: string): Promise<void> {
   const { error } = await supabase.rpc("app_accept_assignment", { p_assignment_id: assignmentId })
+  if (error) throw new Error(error.message)
+}
+
+export async function startFieldJob(assignmentId: string): Promise<void> {
+  const { error } = await supabase.rpc("app_start_field_job", { p_assignment_id: assignmentId })
+  if (error) throw new Error(error.message)
+}
+
+export type FieldJobOutcome = "delayed" | "unable_to_complete" | "needs_rescheduling"
+
+export async function reportFieldJob(assignmentId: string, outcome: FieldJobOutcome, reason: string): Promise<void> {
+  const { error } = await supabase.rpc("app_report_field_job", {
+    p_assignment_id: assignmentId, p_outcome: outcome, p_reason: reason,
+  })
   if (error) throw new Error(error.message)
 }
 

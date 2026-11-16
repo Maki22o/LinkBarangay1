@@ -1,12 +1,20 @@
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import test from "node:test"
-import { toLocalDateTimeInput } from "../src/lib/dateTime.ts"
+import { manilaInput, manilaInstant, shiftDay, toLocalDateTimeInput } from "../src/lib/dateTime.ts"
 
 test("missing or invalid deadlines remain an empty datetime-local control", () => {
   for (const value of [null, undefined, "", "not-a-date"]) {
     assert.equal(toLocalDateTimeInput(value), "")
   }
+})
+
+test("appointment input uses Philippine time across UTC midnight and rejects invalid dates", () => {
+  assert.equal(manilaInput("2027-01-31T18:00:00.000Z"), "2027-02-01T02:00")
+  assert.equal(manilaInstant("2027-02-01T02:00"), "2027-01-31T18:00:00.000Z")
+  assert.equal(manilaInstant("2027-02-30T09:00"), null)
+  assert.equal(manilaInstant("2027-02-01T24:00"), null)
+  assert.equal(shiftDay("2028-02-28", 2), "2028-03-01")
 })
 
 test("an unchanged assignment deadline round-trips in local time, including UTC+8 and DST", () => {

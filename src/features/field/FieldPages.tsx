@@ -5,7 +5,7 @@
 
 import { useState } from "react"
 import { Icon } from "@/components/common/Icon"
-import { Button, MetricCard, Status, formatRef, formatDateTime } from "@/components/common/ui"
+import { Button, MetricCard, Priority, Status, formatRef, formatDateTime } from "@/components/common/ui"
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/common/States"
 import { Modal } from "@/components/common/Modal"
 import { Field, TextArea } from "@/components/forms/fields"
@@ -13,14 +13,19 @@ import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
 import { useRequestRealtimeRefresh } from "@/hooks/useRequestRealtime"
 import { assignmentStateLabel, isActionableAssignment } from "@/lib/assignmentState"
+import { manilaDateTime, manilaInput } from "@/lib/dateTime"
+import { FieldBookingCalendar } from "@/features/dispatcher/FieldBookingCalendar"
 import {
   acceptAssignment,
   completeJob,
   declineAssignment,
   getAssignment,
   listMyAssignments,
+  reportFieldJob,
+  startFieldJob,
   updateJobProgress,
 } from "@/services/assignmentService"
+import type { FieldJobOutcome } from "@/services/assignmentService"
 import {
   uploadAttachment,
   listAttachments,
@@ -28,6 +33,17 @@ import {
 } from "@/services/requestService"
 import { requestRealtimeFilter } from "@/services/requestService"
 import type { Assignment, ViewId } from "@/types"
+
+const jobTabs = {
+  open: "Open jobs", today: "Today", upcoming: "Upcoming", in_progress: "In progress",
+  overdue: "Overdue", completed: "Completed", all: "All",
+}
+type JobTab = keyof typeof jobTabs
+
+function jobEstimate(job: Assignment) {
+  return job.request?.estimate_recorded_at ? job.request.estimated_completion_at
+    : job.status !== "cancelled" ? job.deadline_at : null
+}
 
 export function FieldDashboard({
   setView,
@@ -46,6 +62,7 @@ export function FieldDashboard({
     enabled: Boolean(profile && requestFilter),
     filter: requestFilter,
   })
+  useRequestRealtimeRefresh(jobs.refresh, { enabled: Boolean(profile), table: "lb_assignments", filter: `assigned_to=eq.${profile?.id}` })
 
   if (jobs.loading) return <LoadingState label="Loading your day…" />
   if (jobs.error) return <ErrorState message={jobs.error} onRetry={jobs.refresh} />
@@ -107,8 +124,8 @@ export function FieldDashboard({
                     </p>
                   </div>
                   <div className="job-time">
-                    <small>DEADLINE</small>
-                    <strong>{job.deadline_at ? formatDateTime(job.deadline_at) : "—"}</strong>
+                    <small>ESTIMATED COMPLETION</small>
+                    <strong>{manilaDateTime(jobEstimate(job))}</strong>
                   </div>
                 </button>
               ))}
@@ -155,7 +172,8 @@ export function JobsPage({
   openJob: (assignmentId: string) => void
 }) {
   const { profile } = useAuth()
-  const [filter, setFilter] = useState<"open" | "completed" | "all">("open")
+  const [filter, setFilter] = useState<JobTab>("open")
+  const [calendar, setCalendar] = useState(false)
   const jobs = useAsync(
     () => (profile ? listMyAssignments(profile.id) : Promise.resolve([])),
     [profile?.id, profile?.department_id],
@@ -165,16 +183,15 @@ export function JobsPage({
     enabled: Boolean(profile && requestFilter),
     filter: requestFilter,
   })
+  useRequestRealtimeRefresh(jobs.refresh, { enabled: Boolean(profile), table: "lb_assignments", filter: `assigned_to=eq.${profile?.id}` })
 
   if (jobs.loading) return <LoadingState label="Loading jobs…" />
   if (jobs.error) return <ErrorState message={jobs.error} onRetry={jobs.refresh} />
 
   const all = jobs.data ?? []
-  const rows = all.filter((job) => {
-    if (filter === "open") return isActionableAssignment(job, profile?.department_id)
-    if (filter === "completed") return job.status === "completed"
-    return true
-  })
+  const now = Date.now()
+  const rows = all.filter((job) => filterMatch(job, filter, now, profile?.department_id))
+  if (filter === "today" || filter === "upcoming") rows.sort((a, b) => Date.parse(a.schedule_at ?? "") - Date.parse(b.schedule_at ?? ""))
 
   return (
     <div>
@@ -184,17 +201,22 @@ export function JobsPage({
           <h1>My Assigned Jobs</h1>
           <p>Accept, progress, and complete your assignments.</p>
         </div>
+        <div className="schedule-pagination">
+          <Button variant="secondary" onClick={() => setView("availability")}>My availability</Button>
+          <Button variant="secondary" onClick={() => setCalendar((shown) => !shown)}>{calendar ? "Hide schedule" : "My schedule"}</Button>
+        </div>
       </div>
+      {calendar && <FieldBookingCalendar departmentId={profile?.department_id ?? null} openJob={openJob} includeCapacity={false} />}
       <div className="panel">
         <div className="queue-tabs">
-          {(["open", "completed", "all"] as const).map((tab) => (
+          {(Object.keys(jobTabs) as JobTab[]).map((tab) => (
             <button
               className={filter === tab ? "active" : ""}
               key={tab}
               onClick={() => setFilter(tab)}
             >
-              {tab === "open" ? "Open jobs" : tab === "completed" ? "Completed" : "All"}
-              <b>{all.filter((j) => (tab === "all" ? true : filterMatch(j, tab, profile?.department_id))).length}</b>
+              {jobTabs[tab]}
+              <b>{all.filter((job) => filterMatch(job, tab, now, profile?.department_id)).length}</b>
             </button>
           ))}
         </div>
@@ -209,18 +231,22 @@ export function JobsPage({
                 </span>
                 <div className="job-main">
                   <span>
-                    <Status status={job.request?.status ?? "assigned"} />
+                    <Status status={assignmentStateLabel(job)} />
+                    {job.request && <Priority level={job.request.priority} />}
                   </span>
                   <h3>{job.request?.title ?? "Previous assignment"}</h3>
                   <p>
                     <Icon name="pin" size={12} /> {job.request?.location || "No location"}
                     {job.request?.category?.name ? ` · ${job.request.category.name}` : ""}
                   </p>
+                  <small className="field-job-mobile-schedule">
+                    {job.schedule_at ? manilaDateTime(job.schedule_at) : "No appointment"} · Estimated completion {manilaDateTime(jobEstimate(job))}
+                  </small>
                 </div>
                 <div className="job-time">
-                  <small>DEADLINE</small>
-                  <strong>{job.deadline_at ? formatDateTime(job.deadline_at) : "—"}</strong>
-                  <span>{assignmentStateLabel(job)}</span>
+                  <small>PHILIPPINE TIME</small>
+                  <strong>{job.schedule_at ? manilaDateTime(job.schedule_at) : "No appointment"}</strong>
+                  <span>Estimated completion {manilaDateTime(jobEstimate(job))}</span>
                 </div>
               </button>
             ))}
@@ -231,10 +257,15 @@ export function JobsPage({
   )
 }
 
-function filterMatch(job: Assignment, tab: "open" | "completed" | "all", departmentId?: string | null) {
-  if (tab === "open") return isActionableAssignment(job, departmentId)
-  if (tab === "completed") return job.status === "completed"
-  return true
+function filterMatch(job: Assignment, tab: JobTab, now: number, departmentId?: string | null) {
+  if (tab === "all") return true
+  if (tab === "completed") return ["completed", "verified"].includes(job.status)
+  if (!isActionableAssignment(job, departmentId)) return false
+  if (tab === "open") return true
+  if (tab === "in_progress") return job.status === "in_progress"
+  if (tab === "today") return Boolean(job.schedule_at && manilaInput(job.schedule_at).slice(0, 10) === manilaInput(now).slice(0, 10))
+  if (tab === "upcoming") return Date.parse(job.schedule_at ?? "") > now
+  return Date.parse(jobEstimate(job) ?? "") < now
 }
 
 // ---------------------------------------------------------------------------
@@ -253,8 +284,10 @@ export function JobDetailPage({
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [modal, setModal] = useState<null | "decline" | "progress" | "complete">(null)
+  const [modal, setModal] = useState<null | "decline" | "progress" | "complete" | FieldJobOutcome>(null)
   const [photoBusy, setPhotoBusy] = useState<false | "before" | "after">(false)
+  useRequestRealtimeRefresh(jobs.refresh, { table: "lb_assignments", filter: `id=eq.${assignmentId}` })
+  useRequestRealtimeRefresh(jobs.refresh, { enabled: Boolean(jobs.data), filter: `id=eq.${jobs.data?.request_id}` })
 
   const handlePhotoUpload = async (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -319,14 +352,14 @@ export function JobDetailPage({
               <h1>{request?.title ?? "Previous assignment"}</h1>
               <p>
                 {request?.category?.name ?? "Uncategorized"} ·{" "}
-                {request?.location || "No location"} · Deadline{" "}
-                {job.deadline_at ? formatDateTime(job.deadline_at) : "—"}
+                {request?.location || "No location"} · Estimated completion {manilaDateTime(jobEstimate(job))}
               </p>
             </div>
           </div>
         </div>
         <div className="detail-top-side">
-          <Status status={actionable ? (job.status === "in_progress" ? "in_progress" : (request?.status ?? "assigned")) : assignmentStateLabel(job)} />
+          <Status status={assignmentStateLabel(job)} />
+          {request && <Priority level={request.priority} />}
         </div>
       </div>
 
@@ -345,6 +378,7 @@ export function JobDetailPage({
             </div>
             <div className="description-body">
               <p>{job.notes || "No special instructions — follow standard procedure."}</p>
+              {!request?.is_anonymous && request?.submitter_name && <p>Resident: {request.submitter_name}</p>}
               {request?.description && (
                 <>
                   <hr />
@@ -356,16 +390,16 @@ export function JobDetailPage({
             </div>
           </section>
 
-          {job.notes.split("\n").filter(Boolean).length > 1 && (
+          {(job.progress_notes || job.completion_remarks || job.decline_reason || job.delay_reason) && (
             <section className="panel">
               <div className="panel-head">
                 <div>
                   <h2>Work log</h2>
-                  <p>Your progress notes</p>
+                  <p>Latest progress and completion remarks</p>
                 </div>
               </div>
               <div className="history-list">
-                {job.notes.split("\n").filter(Boolean).map((line, index) => (
+                {[job.progress_notes, job.completion_remarks, job.decline_reason, job.delay_reason].filter(Boolean).map((line, index) => (
                   <div key={index}>
                     <i>
                       <Icon name="check" size={14} />
@@ -401,7 +435,9 @@ export function JobDetailPage({
                   </Button>
                 </>
               )}
-              {actionable && ["accepted", "in_progress"].includes(job.status) && (
+              {actionable && job.status === "accepted" &&
+                <Button icon="check" disabled={busy} onClick={() => void run("Work started.", () => startFieldJob(job.id))}>Start work</Button>}
+              {actionable && job.status === "in_progress" && (
                 <>
                   <Button icon="route" disabled={busy} onClick={() => setModal("progress")}>
                     Add progress note
@@ -411,6 +447,11 @@ export function JobDetailPage({
                   </Button>
                 </>
               )}
+              {actionable && <>
+                <Button variant="secondary" disabled={busy} onClick={() => setModal("needs_rescheduling")}>Request rescheduling</Button>
+                <Button variant="secondary" disabled={busy} onClick={() => setModal("unable_to_complete")}>Unable to complete</Button>
+                <Button variant="secondary" disabled={busy} onClick={() => setModal("delayed")}>Report a delay</Button>
+              </>}
               {["completed", "verified"].includes(job.status) && (
                 <Notice tone="info">
                   Work submitted and awaiting barangay inspection.
@@ -472,9 +513,10 @@ export function JobDetailPage({
               {job.schedule_at && (
                 <div>
                   <dt>Scheduled</dt>
-                  <dd>{formatDateTime(job.schedule_at)}</dd>
+                  <dd>{manilaDateTime(job.schedule_at)} (Philippine time)</dd>
                 </div>
               )}
+              {job.duration_minutes != null && <div><dt>Scheduled work duration</dt><dd>{job.duration_minutes} min</dd></div>}
             </dl>
           </section>
         </aside>
@@ -496,7 +538,7 @@ export function JobDetailPage({
       {actionable && modal === "progress" && (
         <RemarksModal
           title="Add progress note"
-          intro="Notes are visible to the dispatcher and recorded on the request."
+          intro="This update is visible to the dispatcher and the resident."
           confirmLabel="Save note"
           busy={busy}
           onClose={() => setModal(null)}
@@ -504,6 +546,11 @@ export function JobDetailPage({
             run("Progress saved.", () => updateJobProgress(job.id, remarks))
           }
         />
+      )}
+      {actionable && (modal === "delayed" || modal === "unable_to_complete" || modal === "needs_rescheduling") && (
+        <RemarksModal title={modal === "delayed" ? "Report a delay" : modal === "needs_rescheduling" ? "Request rescheduling" : "Unable to complete"}
+          intro="The dispatcher will receive your reason." confirmLabel="Send to dispatcher" busy={busy} onClose={() => setModal(null)}
+          onConfirm={(reason) => void run("Dispatcher notified.", () => reportFieldJob(job.id, modal, reason))} />
       )}
       {actionable && modal === "complete" && (
         <RemarksModal

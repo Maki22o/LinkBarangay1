@@ -17,10 +17,10 @@ const REQUEST_SELECT = `
   id, reference, title, description, category_id, barangay_id, department_id,
   status, priority, is_anonymous, is_custom, submitter_name, submitter_contact, location,
   location_latitude, location_longitude, location_details,
-  submitted_by, assigned_to, assigned_by, due_at, needs_info_by, needs_info_message,
+  submitted_by, assigned_to, assigned_by, due_at, estimated_completion_at, estimated_duration_minutes, estimate_recorded_at, needs_info_by, needs_info_message,
   rejection_reason, resolved_at, closed_at, reopened_count, escalation_count,
   created_at, updated_at,
-  category:lb_service_categories(id, name, slug, sla_hours),
+  category:lb_service_categories(id, name, slug, sla_hours, field_appointment_minutes),
   barangay:lb_barangays(id, name),
   department:lb_departments(id, name),
   submitter:lb_profiles!lb_service_requests_submitted_by_profile_fkey(id, full_name, email, mobile, address),
@@ -69,8 +69,9 @@ export async function listRequests(profile: Profile, filters: RequestListFilters
        barangay:lb_barangays(id, name)`,
       { count: "exact" },
     )
-    .order(filters.overdue ? "due_at" : filters.sortBy === "priority" ? "priority_rank" : "created_at",
-      { ascending: filters.overdue || filters.sortBy === "priority", nullsFirst: false })
+    .order(filters.overdue ? "due_at" : filters.sortBy === "priority" ? "dispatch_priority_order" : "created_at",
+      { ascending: Boolean(filters.overdue), nullsFirst: false })
+    .order("id")
     .range((page - 1) * pageSize, page * pageSize - 1)
 
   // Scope filter mirrors the RLS policies (RLS remains the real gatekeeper)
@@ -82,7 +83,8 @@ export async function listRequests(profile: Profile, filters: RequestListFilters
     query = query.eq("department_id", profile.department_id ?? "00000000-0000-0000-0000-000000000000")
 
   if (filters.status) query = query.eq("status", filters.status)
-  if (filters.priority) query = query.eq("priority", filters.priority)
+  if (filters.priority === "normal") query = query.in("priority", ["normal", "medium"])
+  else if (filters.priority) query = query.eq("priority", filters.priority)
   if (filters.categoryId) query = query.eq("category_id", filters.categoryId)
   if (filters.departmentId) query = query.eq("department_id", filters.departmentId)
   if (filters.overdue) {
@@ -137,8 +139,8 @@ export interface SubmitInput {
   barangay_id?: string | null
 }
 
-export async function submitRequest(input: SubmitInput, evidencePath: string): Promise<ServiceRequest> {
-  const { data, error } = await supabase.rpc("app_submit_resident_request_with_evidence_v2", {
+export async function submitRequest(input: SubmitInput, evidencePath: string, preferredAt?: string): Promise<ServiceRequest> {
+  const { data, error } = await supabase.rpc(preferredAt ? "app_submit_request_with_field_appointment" : "app_submit_resident_request_with_evidence_v2", {
     p_title: input.title.trim(),
     p_description: input.description.trim(),
     p_category_id: input.category_id,
@@ -148,6 +150,7 @@ export async function submitRequest(input: SubmitInput, evidencePath: string): P
     p_latitude: input.latitude,
     p_longitude: input.longitude,
     p_location_details: input.location_details,
+    ...(preferredAt ? { p_preferred_at: preferredAt } : {}),
   })
   if (error) throw new Error(error.message)
   const result = data as { request?: ServiceRequest }
@@ -225,11 +228,11 @@ export async function escalateRequest(requestId: string, remarks?: string): Prom
   if (error) throw new Error(error.message)
 }
 
-export async function setRequestPriority(requestId: string, priority: RequestPriority): Promise<void> {
-  if (!["high", "medium", "low"].includes(priority)) throw new Error("Choose high, medium, or low priority.")
-  const { error } = await supabase.rpc("app_set_request_priority", {
+export async function setRequestPriority(requestId: string, priority: RequestPriority, reason: string): Promise<void> {
+  const { error } = await supabase.rpc("app_change_request_priority", {
     p_request_id: requestId,
     p_priority: priority,
+    p_reason: reason,
   })
   if (error) throw new Error(error.message)
 }

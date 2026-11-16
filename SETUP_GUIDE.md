@@ -42,6 +42,8 @@ Use the publishable key (`sb_publishable_...`), or the project's legacy anon key
 
 ## 3. Initialize or upgrade the database
 
+For dispatcher and field scheduling on a database already through migration `0023`, follow [Field scheduling setup and testing](FIELD_SCHEDULING.md).
+
 Choose one path. Use SQL Editor to run each complete file individually and resolve errors before continuing. Do not reset an existing project or blindly run `supabase db push` over an unreconciled migration history.
 
 ### Existing project

@@ -15,6 +15,7 @@ export async function listAppointments(barangayId: string | null): Promise<Appoi
   const { data, error } = await supabase
     .from("lb_appointments")
     .select(APPOINTMENT_SELECT)
+    .eq("is_field_booking", false)
     .eq("barangay_id", barangayId ?? "00000000-0000-0000-0000-000000000000")
     .order("scheduled_at", { ascending: true })
     .limit(200)

@@ -38,6 +38,7 @@ import {
   WorkloadPage,
 } from "@/features/dispatcher/DispatcherPages"
 import { AvailabilityPage } from "@/features/dispatcher/AvailabilityPage"
+import { FieldAvailabilityPage } from "@/features/field/FieldAvailabilityPage"
 import {
   UsersPage,
 } from "@/features/admin/AdminPages"
@@ -171,7 +172,7 @@ function Root() {
           return <ResidentDashboard setView={setView} openRequest={openRequest} />
         if (profile.role === "worker" && profile.worker_function === "field")
           return <FieldDashboard setView={setView} openJob={openJob} />
-        if (profile.role === "admin") return <ReportsPage />
+        if (profile.role === "admin") return <ReportsPage openRequest={openRequest} />
         return <StaffDashboard setView={setView} openRequest={openRequest} />
 
       // Shared
@@ -204,7 +205,7 @@ function Root() {
         )
       case "request-detail":
         return requestId ? (
-          <RequestDetailPage requestId={requestId} setView={setView} />
+          <RequestDetailPage key={requestId} requestId={requestId} setView={setView} />
         ) : (
           <UnauthorizedPage setView={setView} />
         )
@@ -294,7 +295,7 @@ function Root() {
       // Reports (captain barangay view + admin system view)
       case "barangay-reports":
       case "reports":
-        return <ReportsPage />
+        return <ReportsPage openRequest={openRequest} />
 
       // Dispatcher
       case "dept-queue":
@@ -306,14 +307,14 @@ function Root() {
       case "workload":
         return <WorkloadPage />
       case "availability":
-        return <AvailabilityPage />
+        return profile.worker_function === "field" ? <FieldAvailabilityPage /> : <AvailabilityPage />
 
       // Field personnel
       case "jobs":
         return <JobsPage setView={setView} openJob={openJob} />
       case "job-detail":
         return assignmentId ? (
-          <JobDetailPage assignmentId={assignmentId} setView={setView} />
+          <JobDetailPage key={assignmentId} assignmentId={assignmentId} setView={setView} />
         ) : (
           <UnauthorizedPage setView={setView} />
         )

@@ -13,12 +13,13 @@ import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/commo
 import { Field, Select, TextArea } from "@/components/forms/fields"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
+import { useRequestRealtimeRefresh } from "@/hooks/useRequestRealtime"
 import { hasPermission } from "@/permissions/permissions"
-import { toLocalDateTimeInput } from "@/lib/dateTime"
-import { assignmentStateLabel } from "@/lib/assignmentState"
+import { manilaDateTime } from "@/lib/dateTime"
+import { assignmentStateLabel, isActionableAssignment } from "@/lib/assignmentState"
+import { EstimateModal, FieldAssignmentModal, PriorityModal, RequestScheduleSummary, ResidentAppointmentPicker } from "./RequestScheduling"
 import {
   addComment,
-  assignField,
   escalateRequest,
   getRequest,
   listAttachments,
@@ -30,7 +31,7 @@ import {
 } from "@/services/requestService"
 import { listRequestAssignments } from "@/services/assignmentService"
 import { listDepartments } from "@/services/configService"
-import { listFieldPersonnel } from "@/services/profileService"
+import { cancelFieldAppointment, getRequestSchedule, proposeFieldAppointment, requestAppointment, saveCompletionEstimate, saveFieldAssignment, saveWorkingDayEstimate } from "@/services/schedulingService"
 import { STATUS_LABELS } from "@/types"
 import type { RequestStatus, ServiceRequest, ViewId } from "@/types"
 
@@ -40,7 +41,7 @@ const STAGE_INDEX: Record<string, number> = {
   needs_information: 1,
   verified: 2,
   assigned: 3,
-  in_progress: 4,
+  in_progress: 3,
   for_inspection: 4,
   resolved: 5,
   closed: 5,
@@ -64,6 +65,9 @@ export function RequestDetailPage({
     | { kind: "needs-info" }
     | { kind: "route" }
     | { kind: "assign" }
+    | { kind: "priority" }
+    | { kind: "estimate" }
+    | { kind: "cancel-appointment" }
     | { kind: "close" }
     | { kind: "reopen" }
     | { kind: "escalate" }
@@ -71,22 +75,19 @@ export function RequestDetailPage({
   const [comment, setComment] = useState("")
   const [reply, setReply] = useState("")
   const [uploading, setUploading] = useState(false)
+  const [preferredAt, setPreferredAt] = useState("")
 
   const detail = useAsync(() => getRequest(requestId), [requestId])
   const attachments = useAsync(() => listAttachments(requestId), [requestId])
-  const assignments = useAsync(() => listRequestAssignments(requestId), [requestId])
+  const assignments = useAsync(() => profile?.role === "resident" ? Promise.resolve([]) : listRequestAssignments(requestId), [requestId, profile?.role])
+  const schedule = useAsync(() => getRequestSchedule(requestId), [requestId])
   const departments = useAsync(() => listDepartments(), [])
-  const fieldStaff = useAsync(
-    () =>
-      profile && ((profile.role === "worker" && profile.worker_function === "dispatcher") || profile.role === "admin")
-        ? listFieldPersonnel(
-            detail.data?.request.department_id ?? profile.department_id ?? null,
-          )
-        : Promise.resolve([]),
-    [detail.data?.request.department_id, profile?.id],
-  )
+  useRequestRealtimeRefresh(() => { detail.refresh(); schedule.refresh() }, { filter: `id=eq.${requestId}` })
+  useRequestRealtimeRefresh(assignments.refresh, {
+    enabled: profile?.role !== "resident", table: "lb_assignments", filter: `request_id=eq.${requestId}`,
+  })
 
-  if (detail.loading) return <LoadingState label="Loading request…" />
+  if (detail.loading && !detail.data) return <LoadingState label="Loading request…" />
   if (detail.error) return <ErrorState message={detail.error} onRetry={detail.refresh} />
   if (!detail.data)
     return (
@@ -114,6 +115,7 @@ export function RequestDetailPage({
       detail.refresh()
       attachments.refresh()
       assignments.refresh()
+      schedule.refresh()
     } catch (err) {
       setActionError((err as Error).message)
     } finally {
@@ -131,6 +133,16 @@ export function RequestDetailPage({
   const canPrioritize = hasPermission(profile, "requests.prioritize")
   const staffBarangay = role === "worker" && profile?.worker_function === "barangay_staff"
   const mapUrl = request.location_details?.map_url
+  const currentAssignment = assignments.data?.find((item) => isActionableAssignment(item))
+  const canChangeSchedule = canAssign && ["verified", "assigned", "in_progress"].includes(request.status)
+  const canRequestAppointment = isOwner && role === "resident" && Boolean(request.category?.field_appointment_minutes)
+    && (!schedule.data || ["pending", "cancelled"].includes(schedule.data.status))
+    && ["submitted", "for_verification", "needs_information", "verified", "assigned"].includes(request.status)
+  const estimate = request.estimate_recorded_at ? request.estimated_completion_at
+    : schedule.data?.status !== "cancelled" ? schedule.data?.end_at : null
+  const delayed = Boolean(estimate && Date.parse(estimate) < Date.now() && ["verified", "assigned", "in_progress"].includes(request.status))
+  const latestProgress = [...updates].reverse().find((item) => item.remarks && ["status_change", "field_schedule", "comment"].includes(item.type))
+  const proposedAt = schedule.data?.proposed_at
 
   const active = (status: RequestStatus) => request.status === status
 
@@ -167,7 +179,7 @@ export function RequestDetailPage({
             <div className="panel-head">
               <div>
                 <h2>Progress</h2>
-                <p>Controlled workflow — every step is recorded</p>
+                {latestProgress && <p>{latestProgress.remarks}</p>}
               </div>
             </div>
             <div className="horizontal-timeline">
@@ -228,7 +240,7 @@ export function RequestDetailPage({
               <EmptyState icon="history" title="No activity yet" />
             ) : (
               <div className="history-list">
-                {updates.map((update) => (
+                {[...updates].reverse().map((update) => (
                   <div key={update.id}>
                     <i>
                       <Icon
@@ -357,17 +369,8 @@ export function RequestDetailPage({
                 <dt>Priority</dt>
                 <dd style={{ display: "grid", gap: 8 }}>
                   <Priority level={request.priority} />
-                  {canPrioritize && (
-                    <Select
-                      value={["high", "medium", "low"].includes(request.priority) ? request.priority : "medium"}
-                      onChange={(value) => void run("Request priority updated.", () => setRequestPriority(request.id, value as "high" | "medium" | "low"))}
-                      options={[
-                        { value: "high", label: "High" },
-                        { value: "medium", label: "Medium" },
-                        { value: "low", label: "Low" },
-                      ]}
-                    />
-                  )}
+                  {canPrioritize && !["closed", "rejected", "resolved"].includes(request.status) &&
+                    <Button variant="secondary" onClick={() => setModal({ kind: "priority" })}>Change priority</Button>}
                 </dd>
               </div>
               {request.due_at && (
@@ -399,9 +402,42 @@ export function RequestDetailPage({
             {mapUrl && <a className="location-directions" href={mapUrl} target="_blank" rel="noreferrer">Open in Google Maps <Icon name="arrow" size={13} /></a>}
           </section>
 
-          {(isOwner || (role === "worker" && profile?.worker_function === "dispatcher") || role === "admin" || staffBarangay) && (
+          {(isOwner || canAssign || staffBarangay) && (
+            <section className="panel info-panel">
+              <h2>Service schedule</h2>
+              <p className="muted-note">Philippine time (Asia/Manila)</p>
+              {schedule.error && <ErrorState message={schedule.error} onRetry={schedule.refresh} />}
+              <RequestScheduleSummary schedule={schedule.data} estimate={estimate} minutes={request.estimated_duration_minutes} />
+              {!isOwner && delayed && <Status status="Overdue" />}
+              {canRequestAppointment && !schedule.loading && request.category && (
+                <>
+                  <ResidentAppointmentPicker key={request.id} categoryId={request.category.id} value={preferredAt} onChange={setPreferredAt} />
+                  <Button disabled={!preferredAt || busy} onClick={() => void run("Appointment request submitted.", async () => {
+                    await requestAppointment(request.id, preferredAt)
+                    setPreferredAt("")
+                  })}>{schedule.data?.status === "pending" ? "Update preferred time" : "Request appointment"}</Button>
+                  {proposedAt && <Button variant="secondary" disabled={busy} onClick={() =>
+                    void run("Proposed time selected.", () => requestAppointment(request.id, proposedAt))}>Use proposed time</Button>}
+                </>
+              )}
+              {canAssign && !["closed", "rejected", "resolved"].includes(request.status) && (
+                <div className="action-buttons">
+                  {(canChangeSchedule || schedule.data?.status === "pending") && <Button onClick={() => setModal({ kind: "assign" })}>
+                    {schedule.data?.status === "pending" ? "Review appointment" : currentAssignment ? "Manage assignment" : "Assign personnel"}
+                  </Button>}
+                  {schedule.data && ["pending", "confirmed", "rescheduled", "in_progress"].includes(schedule.data.status) &&
+                    <Button variant="secondary" onClick={() => setModal({ kind: "cancel-appointment" })}>
+                      {schedule.data.status === "pending" ? "Decline appointment request" : "Cancel appointment"}
+                    </Button>}
+                  <Button variant="secondary" onClick={() => setModal({ kind: "estimate" })}>Update estimate</Button>
+                </div>
+              )}
+            </section>
+          )}
+
+          {!isOwner && (canAssign || staffBarangay) && (
             <section className="panel assigned-panel">
-              <h2>{isOwner ? "Appointment and service schedule" : "Field assignments"}</h2>
+              <h2>Field assignments</h2>
               {assignments.loading ? (
                 <LoadingState />
               ) : !assignments.data || assignments.data.length === 0 ? (
@@ -409,17 +445,19 @@ export function RequestDetailPage({
               ) : (
                 assignments.data.map((assignment) => (
                   <div key={assignment.id}>
-                    {!isOwner && <span className="person-avatar">
+                    <span className="person-avatar">
                       {(assignment.assignee?.full_name ?? "?").slice(0, 2).toUpperCase()}
-                    </span>}
+                    </span>
                     <p>
-                      {!isOwner && <strong>{assignment.assignee?.full_name ?? "Field personnel"}</strong>}
+                      <strong>{assignment.assignee?.full_name ?? "Field personnel"}</strong>
                       <small>
-                        {isOwner ? `Appointment ${assignment.appointment_status}` : assignmentStateLabel(assignment)}
-                        {assignment.schedule_at ? ` · ${formatDateTime(assignment.schedule_at)}` : ""}
-                        {assignment.deadline_at ? ` · estimated completion ${formatDateTime(assignment.deadline_at)}` : ""}
+                        {assignmentStateLabel(assignment)}
+                        {assignment.schedule_at ? ` · ${manilaDateTime(assignment.schedule_at)}` : ""}
                         {assignment.duration_minutes ? ` · ${assignment.duration_minutes} minutes` : ""}
                       </small>
+                      {assignment.decline_reason && <small>{assignment.decline_reason}</small>}
+                      {assignment.progress_notes && <small>{assignment.progress_notes}</small>}
+                      {assignment.delay_reason && <small>Delay: {assignment.delay_reason}</small>}
                     </p>
                   </div>
                 ))
@@ -538,15 +576,6 @@ export function RequestDetailPage({
                     Route to department
                   </Button>
                 )}
-                {canAssign && (active("assigned") || active("verified")) && (
-                  <Button
-                    icon="briefcase"
-                    disabled={busy}
-                    onClick={() => setModal({ kind: "assign" })}
-                  >
-                    Assign field personnel
-                  </Button>
-                )}
                 {canResolve && active("for_inspection") && (
                   <Button
                     icon="check"
@@ -640,22 +669,28 @@ export function RequestDetailPage({
         />
       )}
       {modal?.kind === "assign" && (
-        <AssignFieldModal
-          fieldStaff={fieldStaff.data ?? []}
-          dueAt={request.due_at}
+        <FieldAssignmentModal
+          request={request}
+          schedule={schedule.data}
+          current={currentAssignment}
+          departmentId={request.department_id ?? profile?.department_id ?? ""}
+          canConfirm={canChangeSchedule}
           busy={busy}
+          error={actionError}
+          onEdit={() => setActionError(null)}
           onClose={() => setModal(null)}
-          onConfirm={(input) =>
-            run("Field personnel assigned.", () =>
-              assignField(request.id, input.userId, {
-                deadlineAt: input.deadlineAt,
-                scheduleAt: input.scheduleAt,
-                notes: input.notes,
-              }),
-            )
-          }
+          onSave={(input) => void run("Assignment saved.", () => saveFieldAssignment(request.id, input))}
+          onPropose={(date, reason) => void run("Alternate time proposed.", () => proposeFieldAppointment(request.id, date, reason))}
         />
       )}
+      {modal?.kind === "priority" && <PriorityModal priority={request.priority} busy={busy} error={actionError} onClose={() => setModal(null)}
+        onSave={(priority, reason) => void run("Priority updated.", () => setRequestPriority(request.id, priority, reason))} />}
+      {modal?.kind === "estimate" && <EstimateModal request={request} busy={busy} error={actionError} onClose={() => setModal(null)}
+        onSave={(date, minutes, reason) => void run("Estimate updated.", () => saveCompletionEstimate(request.id, date, minutes, reason))}
+        onSaveDays={(days, reason) => void run("Estimate updated.", () => saveWorkingDayEstimate(request.id, days, reason))} />}
+      {modal?.kind === "cancel-appointment" && <RemarksModal title={schedule.data?.status === "pending" ? "Decline appointment request" : "Cancel appointment"}
+        intro="The resident will see this explanation." confirmLabel="Confirm cancellation" danger busy={busy} onClose={() => setModal(null)}
+        onConfirm={(reason) => run("Appointment cancelled.", () => cancelFieldAppointment(request.id, reason))} />}
       {modal?.kind === "close" && (
         <ConfirmDialog
           title="Close this request"
@@ -693,7 +728,7 @@ export function RequestDetailPage({
           intro="Escalation raises the request's priority and flags it for supervisors."
           confirmLabel="Escalate"
           busy={busy}
-          optional
+          optional={["high", "urgent"].includes(request.priority)}
           onClose={() => setModal(null)}
           onConfirm={(remarks) =>
             run("Request escalated.", () => escalateRequest(request.id, remarks))
@@ -787,99 +822,6 @@ function RouteModal({
           Route request
         </Button>
       </div>
-    </Modal>
-  )
-}
-
-function AssignFieldModal({
-  fieldStaff,
-  dueAt,
-  busy,
-  onClose,
-  onConfirm,
-}: {
-  fieldStaff: { id: string; full_name: string }[]
-  dueAt: string | null
-  busy: boolean
-  onClose: () => void
-  onConfirm: (input: {
-    userId: string
-    scheduleAt: string | null
-    deadlineAt: string | null
-    notes: string
-  }) => void
-}) {
-  const [userId, setUserId] = useState("")
-  const [scheduleAt, setScheduleAt] = useState("")
-  const [deadlineAt, setDeadlineAt] = useState(
-    toLocalDateTimeInput(dueAt),
-  )
-  const [notes, setNotes] = useState("")
-
-  return (
-    <Modal title="Assign field personnel" onClose={onClose}>
-      {fieldStaff.length === 0 ? (
-        <Notice tone="warning">
-          No active field personnel found for this department. Ask the administrator to create
-          field staff accounts first.
-        </Notice>
-      ) : (
-        <>
-          <Field label="Field personnel" required>
-            <Select
-              value={userId}
-              onChange={setUserId}
-              options={[
-                { value: "", label: "Select personnel" },
-                ...fieldStaff.map((person) => ({
-                  value: person.id,
-                  label: person.full_name,
-                })),
-              ]}
-            />
-          </Field>
-          <div className="form-grid">
-            <Field label="Appointment date and time (optional)">
-              <input
-                type="datetime-local"
-                value={scheduleAt}
-                onChange={(event) => setScheduleAt(event.target.value)}
-              />
-            </Field>
-            <Field label="Estimated completion date and time">
-              <input
-                type="datetime-local"
-                value={deadlineAt}
-                onChange={(event) => setDeadlineAt(event.target.value)}
-              />
-            </Field>
-          </div>
-          {scheduleAt && deadlineAt && new Date(deadlineAt) > new Date(scheduleAt) && (
-            <p className="field-help">Estimated service duration: {Math.ceil((new Date(deadlineAt).getTime() - new Date(scheduleAt).getTime()) / 60000)} minutes. Availability and overlapping field appointments are checked before saving.</p>
-          )}
-          <Field label="Work instructions (optional)">
-            <TextArea value={notes} onChange={setNotes} rows={3} />
-          </Field>
-          <div className="modal-actions">
-            <Button variant="secondary" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              disabled={busy || !userId}
-              onClick={() =>
-                onConfirm({
-                  userId,
-                  scheduleAt: scheduleAt ? new Date(scheduleAt).toISOString() : null,
-                  deadlineAt: deadlineAt ? new Date(deadlineAt).toISOString() : null,
-                  notes: notes.trim(),
-                })
-              }
-            >
-              Assign job
-            </Button>
-          </div>
-        </>
-      )}
     </Modal>
   )
 }

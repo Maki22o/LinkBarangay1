@@ -750,8 +750,8 @@ td:last-child { width: 40px; }
   .app-content { padding: 28px 20px 50px; }
   .dashboard-grid, .dashboard-bottom, .operations-grid, .admin-grid { grid-template-columns: 1fr; }
   .operations-grid .span-three { grid-column: auto; }
-  .detail-layout { grid-template-columns: 1fr; }
-  .detail-side { display: grid; grid-template-columns: 1fr 1fr; }
+  .detail-layout { grid-template-columns: minmax(0, 1fr); }
+  .detail-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .config-grid { grid-template-columns: 1fr 1fr; }
 }
 
@@ -807,7 +807,7 @@ td:last-child { width: 40px; }
   .success-state { margin: 30px auto; padding: 35px 18px; }
   .horizontal-timeline { padding-inline: 12px; overflow-x: auto; }
   .horizontal-timeline > div { min-width: 82px; }
-  .detail-side { grid-template-columns: 1fr; }
+  .detail-side { grid-template-columns: minmax(0, 1fr); }
   .job-list { padding: 0 10px; }
   .job-list > button { gap: 9px; }
   .job-time { display: none; }
@@ -844,3 +844,55 @@ td:last-child { width: 40px; }
 .notification-appointment-details dd { margin: 0; font-size: 13px; color: #2b3950; overflow-wrap: anywhere; }
 
 .sidebar nav button b, .account-menu > button b { padding: 0 5px; flex: 0 0 auto; }
+.schedule-form { display: grid; gap: 12px; }
+.panel.schedule-form, .field-calendar { padding: 16px; margin-bottom: 16px; }
+.schedule-form .panel-head, .field-calendar .panel-head { padding: 0; }
+.schedule-controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; padding: 12px 0; }
+.panel > .schedule-controls, .panel > .schedule-pagination { padding-inline: 16px; }
+.schedule-controls > .field { flex: 1 1 145px; margin: 0; min-width: 0; }
+.schedule-controls input, .schedule-controls select, .schedule-form input { max-width: 100%; }
+.schedule-pagination { display: flex; flex-wrap: wrap; gap: 8px; padding-block: 8px; }
+.schedule-summary { padding-bottom: 12px; }
+.schedule-summary dd { overflow-wrap: anywhere; }
+.schedule-summary .status, .calendar-badges .status { white-space: normal; }
+.schedule-person, .calendar-day { padding: 10px; border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+.schedule-person h3 { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.schedule-person p { margin-top: 6px; font-size: 13px; }
+.slot-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.slot-list > span { padding: 4px 7px; background: var(--soft-blue); color: var(--navy); border-radius: 5px; font-size: 12px; }
+.calendar-days, .calendar-bookings { display: grid; gap: 8px; }
+.calendar-week, .calendar-month { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.calendar-day h3 { font-size: 13px; margin-bottom: 8px; }
+.calendar-day .muted-note { font-size: 11px; }
+.calendar-booking { width: 100%; display: grid; gap: 4px; text-align: left; padding: 8px; margin-top: 6px; border-radius: 6px; background: var(--soft-blue); color: var(--navy); overflow-wrap: anywhere; }
+.calendar-booking:hover { background: #e3edff; }
+.calendar-booking > strong { font-size: 12px; }
+.calendar-booking > span { font-size: 11px; }
+.calendar-badges { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.working-hours-row { display: grid; grid-template-columns: minmax(95px, 1fr) repeat(2, minmax(100px, 1fr)); gap: 12px; align-items: end; }
+.working-hours-row .field { margin: 0; }
+.schedule-check { display: flex; gap: 8px; align-items: center; min-height: 44px; }
+.schedule-block { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.queue-detail, .queue-description { display: block; white-space: normal; }
+.queue-description { min-width: 12rem; max-width: 24rem; overflow-wrap: anywhere; }
+.status-confirmed, .status-available { color: #126b51; background: #e5f7ef; }
+.status-confirmed i, .status-available i { background: #1b9a70; }
+.status-rescheduled, .status-busy { color: #2456a6; background: #eaf1ff; }
+.status-rescheduled i, .status-busy i { background: #3b70cf; }
+.status-overdue, .status-unable-to-complete, .status-needs-rescheduling, .status-unavailable { color: #943d3d; background: #fff0ee; }
+.status-overdue i, .status-unable-to-complete i, .status-needs-rescheduling i, .status-unavailable i { background: #d85b50; }
+.status-off-duty { color: #647087; background: #edf0f4; }
+.field-job-mobile-schedule { display: none; }
+@media (max-width: 1100px) {
+  .calendar-week, .calendar-month { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .calendar-placeholder { display: none; }
+}
+@media (max-width: 600px) {
+  .calendar-week, .calendar-month { grid-template-columns: 1fr; }
+  .working-hours-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
+  .working-hours-row .schedule-check { grid-column: 1 / -1; }
+  .schedule-controls { gap: 8px; }
+}
+@media (max-width: 560px) {
+  .field-job-mobile-schedule { display: block; margin-top: 5px; color: var(--muted); }
+}

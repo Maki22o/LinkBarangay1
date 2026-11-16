@@ -8,6 +8,8 @@ import { Button } from "@/components/common/ui"
 import { Notice } from "@/components/common/States"
 import { Field, TextArea, TextInput } from "@/components/forms/fields"
 import { GoogleLocationPicker, type RequestLocation } from "@/features/resident/GoogleLocationPicker"
+import { ResidentAppointmentPicker } from "@/features/shared/RequestScheduling"
+import { manilaDateTime } from "@/lib/dateTime"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
 import { listCategories } from "@/services/configService"
@@ -29,6 +31,7 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<ServiceRequest | null>(null)
+  const [preferredAt, setPreferredAt] = useState("")
 
   const category = categories.data?.find((c) => c.id === categoryId)
   const matchingCategories = (categories.data ?? []).filter((item) => {
@@ -52,6 +55,7 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
           <small>REFERENCE NUMBER</small>
           <strong>{created.reference}</strong>
         </div>
+        {preferredAt && <p>Appointment requested for {manilaDateTime(preferredAt)} (Philippine time). Awaiting confirmation.</p>}
         <div>
           <Button variant="secondary" onClick={() => setView("requests")}>
             View my requests
@@ -109,7 +113,7 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
         latitude: mapLocation.latitude,
         longitude: mapLocation.longitude,
         location_details: { barangay: mapLocation.barangay, city: mapLocation.city, province: mapLocation.province, map_url: mapLocation.map_url },
-      }, evidencePath)
+      }, evidencePath, !isCustom && category?.field_appointment_minutes ? preferredAt || undefined : undefined)
       setCreated(request)
     } catch (err) {
       if (evidencePath) await removeStagedRequestEvidence(evidencePath, profile.id).catch(() => undefined)
@@ -165,7 +169,7 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
                       type="radio"
                       name="category"
                       checked={!isCustom && categoryId === item.id}
-                      onChange={() => { setCategoryId(item.id); setIsCustom(false) }}
+                      onChange={() => { setCategoryId(item.id); setIsCustom(false); setPreferredAt("") }}
                     />
                     <span>
                       <Icon name="file" size={20} />
@@ -178,7 +182,7 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
                   </label>
                 ))}
                 <label className="custom-request-choice">
-                  <input type="radio" name="category" checked={isCustom} onChange={() => { setIsCustom(true); setCategoryId("") }} />
+                  <input type="radio" name="category" checked={isCustom} onChange={() => { setIsCustom(true); setCategoryId(""); setPreferredAt("") }} />
                   <span><Icon name="plus" size={20} /><b>Can't find your concern? Submit a Custom Request</b><small>Describe a legitimate barangay concern that is not listed above. It will follow the same review and dispatch process.</small></span>
                 </label>
               </div>
@@ -252,6 +256,12 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
                   <strong>{file ? file.name : "None"}</strong>
                 </div>
               </div>
+              {!isCustom && category?.field_appointment_minutes && profile?.verification?.status === "approved" && (
+                <section>
+                  <h3>Request an appointment (optional)</h3>
+                  <ResidentAppointmentPicker key={category.id} categoryId={category.id} value={preferredAt} onChange={setPreferredAt} />
+                </section>
+              )}
               {busy && <Notice tone="info">Submitting your request…</Notice>}
             </div>
           )}
