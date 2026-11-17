@@ -648,6 +648,16 @@ td:last-child { width: 40px; }
 .modal-intro { color: #6e7c91; font-size: 12px; line-height: 1.6; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }
 .confirm-message { color: #4c5b74; font-size: 13px; line-height: 1.6; }
+.ai-help-messages { min-height: 240px; max-height: 46vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 2px; }
+.ai-help-message { max-width: 88%; display: grid; gap: 4px; padding: 10px 12px; border-radius: 10px; color: #30425e; background: #f1f5fb; font-size: 12px; line-height: 1.55; }
+.ai-help-message.user { align-self: flex-end; color: #fff; background: var(--blue); }
+.ai-help-message strong { font-size: 10px; opacity: .85; }
+.ai-help-message p { margin: 0; white-space: pre-wrap; }
+.ai-help-input { display: grid; gap: 5px; }
+.ai-help-input textarea { width: 100%; resize: vertical; min-height: 72px; padding: 10px 12px; border: 1px solid #d5dce5; border-radius: 8px; color: #263957; font: inherit; line-height: 1.5; outline: none; }
+.ai-help-input textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(47,94,218,.12); }
+.ai-help-input small { color: #7a8ba4; font-size: 10px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 /* States: spinner, empty, error */
 .state-block { min-height: 180px; padding: 34px 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; text-align: center; }
@@ -701,7 +711,8 @@ td:last-child { width: 40px; }
 .category-search input, .map-search-input input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: #263957; font: inherit; }
 .custom-request-choice span { border-style: dashed !important; border-color: #9ab6ef !important; background: #f7faff !important; }
 .map-picker { width: 100%; display: grid; gap: 10px; }
-.google-map { min-height: 300px; border: 1px solid #d5dce5; border-radius: 9px; overflow: hidden; background: #edf2f8; }
+.google-map { min-height: 300px; height: clamp(300px, 38vw, 430px); border: 1px solid #d5dce5; border-radius: 9px; overflow: hidden; background: #edf2f8; }
+.google-map iframe { width: 100%; height: 100%; min-height: 300px; border: 0; display: block; }
 .openstreet-map { width: 100%; height: clamp(300px, 38vw, 430px); min-height: 300px; border: 1px solid #d5dce5; border-radius: 9px; overflow: hidden; background: #edf2f8; z-index: 0; }
 .map-search-row { display: flex; align-items: stretch; gap: 10px; }
 .map-search-row .map-search-input { flex: 1; margin-bottom: 0; }

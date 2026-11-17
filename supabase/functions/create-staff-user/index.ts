@@ -17,10 +17,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const VALID_WORKER_FUNCTIONS = ["barangay_staff", "dispatcher", "field"] as const;
 type WorkerFunction = (typeof VALID_WORKER_FUNCTIONS)[number];
 type AccountRole = "resident" | "worker";
-const APP_ORIGIN = Deno.env.get("APP_ORIGIN") ?? "http://127.0.0.1:8443";
+const APP_ORIGIN = Deno.env.get("APP_ORIGIN");
+const ALLOWED_ORIGIN = Deno.env.get("ALLOWED_ORIGIN");
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") ?? "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN ?? "",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -45,6 +46,11 @@ function strongPassword(): string {
 
 Deno.serve(async (req: Request) => {
   try {
+  const origin = req.headers.get("Origin");
+  if (!ALLOWED_ORIGIN || !APP_ORIGIN) {
+    return json({ error: "Function origin configuration is missing" }, 503);
+  }
+  if (origin && origin !== ALLOWED_ORIGIN) return json({ error: "Origin is not allowed" }, 403);
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 

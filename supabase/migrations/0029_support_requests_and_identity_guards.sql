@@ -36,12 +36,10 @@ create policy support_requests_admin_update on public.lb_support_requests
   using (public.app_is_admin()) with check (public.app_is_admin());
 
 -- Auth already enforces email uniqueness. Mirror it on lb_profiles so any
--- admin/import path cannot create conflicting profile records. Blank mobile
--- fields remain allowed; only populated normalized numbers must be unique.
+-- admin/import path cannot create conflicting profile records. Mobile numbers
+-- intentionally remain non-unique: one real person can legitimately have a
+-- resident account and an administrative or staff account using the same phone.
 create unique index if not exists lb_profiles_email_ci_unique
   on public.lb_profiles (lower(email));
-create unique index if not exists lb_profiles_mobile_normalized_unique
-  on public.lb_profiles ((nullif(regexp_replace(mobile, '\\D', '', 'g'), '')))
-  where nullif(regexp_replace(mobile, '\\D', '', 'g'), '') is not null;
 
 grant select, insert on public.lb_support_requests to authenticated;

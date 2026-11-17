@@ -11,6 +11,7 @@ import type { ReactNode } from "react"
 import { Icon } from "@/components/common/Icon"
 import { Logo, initials } from "@/components/common/ui"
 import { ConfirmDialog } from "@/components/common/Modal"
+import { AiHelpModal } from "@/features/shared/AiHelpModal"
 import { SupportRequestModal } from "@/features/shared/SupportRequestModal"
 import { useAuth } from "@/hooks/useAuth"
 import { useNotifications } from "@/hooks/useNotifications"
@@ -36,6 +37,7 @@ export function AppShell({
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [supportOpen, setSupportOpen] = useState(false)
+  const [aiHelpOpen, setAiHelpOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
 
   if (!profile) return null
@@ -85,11 +87,11 @@ export function AppShell({
             </div>
           ))}
         </nav>
-        <button className="sidebar-help" onClick={() => setSupportOpen(true)}>
+        <button className="sidebar-help" onClick={() => setAiHelpOpen(true)}>
           <Icon name="help" />
           <div>
             <strong>Need assistance?</strong>
-            <span>Visit the help center</span>
+            <span>Ask the Help Assistant</span>
           </div>
           <Icon name="chevron" size={16} />
         </button>
@@ -217,6 +219,7 @@ export function AppShell({
           onConfirm={() => void signOut()}
         />
       )}
+      {aiHelpOpen && <AiHelpModal onClose={() => setAiHelpOpen(false)} onCreateSupport={() => { setAiHelpOpen(false); setSupportOpen(true) }} />}
       {supportOpen && <SupportRequestModal onClose={() => setSupportOpen(false)} />}
     </div>
   )
