@@ -41,8 +41,8 @@ function RoleSelect({
   onChange: (value: AccountType) => void
 }) {
   return (
-    <Field label="Account application" hint="Staff applications need administrator approval before they receive any staff access." required>
-      <div className="role-toggle" role="radiogroup" aria-label="Account type">
+    <Field label="I am registering as" hint="Personnel accounts are subject to administrator verification and approval." required>
+      <div className="role-toggle" role="radiogroup" aria-label="Registering as">
         {(["resident", "worker"] as const).map((r) => (
           <button
             type="button"
@@ -52,7 +52,7 @@ function RoleSelect({
             className={value === r ? "active" : ""}
             onClick={() => onChange(r)}
           >
-            {r === "resident" ? "Resident account" : "Apply for Barangay Staff access"}
+            {r === "resident" ? "Barangay Resident" : "Barangay Personnel"}
           </button>
         ))}
       </div>
@@ -379,11 +379,11 @@ function RegisterForm({
       setError(passwordError)
       return
     }
-    if (accountType === "resident" && !residentIdFile) {
+    if (!residentIdFile) {
       setError("Upload a valid ID showing your complete residential address.")
       return
     }
-    if (accountType === "resident" && residentIdFile) {
+    if (residentIdFile) {
       try { validateResidentId(residentIdFile) } catch (err) { setError((err as Error).message); return }
     }
     setBusy(true)
@@ -401,6 +401,14 @@ function RegisterForm({
       if (result.needsEmailConfirmation) {
         setConfirmPending(true)
       } else if (accountType === "worker") {
+        try {
+          if (!result.session?.user.id || !residentIdFile) throw new Error("No session")
+          await submitResidentId(result.session.user.id, residentIdFile)
+        } catch {
+          await signOut()
+          setError("Your staff application was created, but the ID upload failed. Contact the barangay administrator to submit your ID.")
+          return
+        }
         await signOut()
         setConfirmPending(true)
       } else {
@@ -455,16 +463,18 @@ function RegisterForm({
               ]}
             />
           </Field>
-          {accountType === "resident" && (
-            <Field label="Valid ID or document with full residential address" required hint="Any valid ID or document that clearly shows your complete address · JPG, PNG, WebP, or PDF · up to 10 MB · visible only to administrators">
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,application/pdf"
-                required
-                onChange={(event) => setResidentIdFile(event.target.files?.[0] ?? null)}
-              />
-            </Field>
-          )}
+          <Field
+            label="Valid ID or document with full residential address"
+            required
+            hint="Any valid ID or document that clearly shows your complete address · JPG, PNG, WebP, or PDF · up to 10 MB · visible only to administrators"
+          >
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              required
+              onChange={(event) => setResidentIdFile(event.target.files?.[0] ?? null)}
+            />
+          </Field>
           <Field label="Email address" required>
             <TextInput
               type="email"

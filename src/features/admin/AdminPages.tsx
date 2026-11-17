@@ -183,7 +183,7 @@ export function UsersPage({ setView }: { setView: (view: ViewId) => void }) {
                           <button className="icon-button" title="View details" onClick={() => setViewing(user)}>
                             <Icon name="eye" size={14} />
                           </button>
-                          {user.role === "resident" && user.verification?.status !== "approved" && user.verification?.storage_path && (
+                          {user.role === "resident" && user.status !== "pending" && user.verification?.status !== "approved" && user.verification?.storage_path && (
                             <button className="icon-button" title="Review resident ID" onClick={() => setReviewing(user)}>
                               <Icon name="shield" size={14} />
                             </button>
@@ -293,6 +293,30 @@ export function UsersPage({ setView }: { setView: (view: ViewId) => void }) {
         />
       )}
     </div>
+  )
+}
+
+function ApplicantId({ user }: { user: Profile }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const path = user.verification?.storage_path
+  useEffect(() => {
+    let active = true
+    if (path) {
+      void signedResidentIdUrl(path)
+        .then((signed) => { if (active) setUrl(signed) })
+        .catch((err) => { if (active) setError((err as Error).message) })
+    }
+    return () => { active = false }
+  }, [path])
+  if (!path) return <Notice tone="error">This applicant did not upload an ID. Do not approve until you have verified their identity.</Notice>
+  return (
+    <Field label="Applicant's valid ID (private, admin only)">
+      {error && <Notice tone="error">{error}</Notice>}
+      {!url ? <LoadingState label="Loading secure ID preview…" /> : user.verification?.mime_type?.startsWith("image/")
+        ? <img src={url} alt="Applicant ID" style={{ display: "block", maxWidth: "100%", maxHeight: "40vh", objectFit: "contain", margin: "8px auto" }} />
+        : <iframe title="Applicant ID" src={url} style={{ width: "100%", height: "40vh", border: "1px solid var(--line)", borderRadius: 8 }} />}
+    </Field>
   )
 }
 
@@ -661,6 +685,7 @@ function EditUserModal({
           ]}
         />
       </Field>
+      {isPending && <ApplicantId user={user} />}
       <Notice tone="info">
         Role and status changes are recorded in the audit log. Users can never change their own
         role — this is enforced by a database trigger, not just this form.

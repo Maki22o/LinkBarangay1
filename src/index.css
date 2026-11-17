@@ -932,3 +932,19 @@ td:last-child { width: 40px; }
 @media (max-width: 560px) {
   .field-job-mobile-schedule { display: block; margin-top: 5px; color: var(--muted); }
 }
+
+/* Compact sign-up layout so the whole form fits the default (100%) view. */
+.auth-main:has(.auth-card.wide) { padding-top: 24px; padding-bottom: 24px; }
+.auth-card.wide .auth-heading { margin-bottom: 14px; }
+.auth-card.wide .auth-heading h1 { font-size: 26px; }
+.auth-card.wide .auth-heading p { margin-top: 4px; }
+.auth-card.wide .auth-form { gap: 11px; }
+.auth-card.wide .form-grid { gap: 11px 16px; }
+.auth-card.wide .field { gap: 5px; }
+.auth-card.wide .field input,
+.auth-card.wide .field select { height: 39px; }
+.auth-card.wide .field input[type="file"] { height: auto; padding: 8px 10px; }
+.auth-card.wide .role-toggle button { padding: 7px 12px; }
+.auth-card.wide .auth-switch { margin-top: 12px; }
+.auth-main:has(.auth-card.wide) { flex-direction: column; }
+.auth-main:has(.auth-card.wide) > .back-link { position: static; width: min(650px, 100%); padding: 0; margin-bottom: 14px; }
