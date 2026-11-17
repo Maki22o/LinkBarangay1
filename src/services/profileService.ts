@@ -125,8 +125,8 @@ export async function listBarangayStaff(barangayId: string | null): Promise<Prof
   return ((data ?? []) as unknown as Profile[])
 }
 
-/** Active field personnel of a department (dispatcher assignment picker). */
-export async function listFieldPersonnel(departmentId: string | null): Promise<Profile[]> {
+/** Active field personnel in the dispatcher's department and barangay. */
+export async function listFieldPersonnel(departmentId: string | null, barangayId: string | null): Promise<Profile[]> {
   const { data, error } = await supabase
     .from("lb_profiles")
     .select(PROFILE_SELECT)
@@ -134,6 +134,7 @@ export async function listFieldPersonnel(departmentId: string | null): Promise<P
     .eq("worker_function", "field")
     .eq("status", "active")
     .eq("department_id", departmentId ?? "00000000-0000-0000-0000-000000000000")
+    .eq("barangay_id", barangayId ?? "00000000-0000-0000-0000-000000000000")
     .order("full_name")
   if (error) throw new Error(error.message)
   return ((data ?? []) as unknown as Profile[])

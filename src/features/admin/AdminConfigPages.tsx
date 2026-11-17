@@ -105,6 +105,7 @@ export function RolesPage() {
 // Configuration hub + sub-pages
 // ---------------------------------------------------------------------------
 export function ConfigurationPage({ setView }: { setView: (view: ViewId) => void }) {
+  const [connectingDrive, setConnectingDrive] = useState(false)
   const cards: { icon: IconName; title: string; text: string; view: ViewId }[] = [
     { icon: "pin", title: "Barangays", text: "Manage barangay records.", view: "barangays" },
     { icon: "briefcase", title: "Departments", text: "City departments and response teams.", view: "departments" },
@@ -135,6 +136,51 @@ export function ConfigurationPage({ setView }: { setView: (view: ViewId) => void
           </button>
         ))}
       </div>
+      <section className="backup-panel" aria-labelledby="backup-title">
+        <div className="backup-panel-head">
+          <div className="backup-heading">
+            <span className="backup-icon"><Icon name="upload" size={21} /></span>
+            <div>
+              <span className="page-kicker">DATA PROTECTION</span>
+              <h2 id="backup-title">Off-site backups</h2>
+              <p>Your LinkBarangay data is copied securely to Google Drive every day.</p>
+            </div>
+          </div>
+          <span className="backup-status"><Icon name="check" size={14} /> Backup enabled</span>
+        </div>
+
+        <div className="backup-details">
+          <div>
+            <span>Backup destination</span>
+            <strong>Google Drive</strong>
+          </div>
+          <div>
+            <span>Schedule</span>
+            <strong>Daily, 2:00 AM</strong>
+          </div>
+          <div>
+            <span>Included data</span>
+            <strong>Database and private files</strong>
+          </div>
+        </div>
+
+        <div className="backup-footer">
+          <p>Automatic backups run in the background. Reconnect only if you change the Google Drive account.</p>
+          <Button disabled={connectingDrive} onClick={async () => {
+          setConnectingDrive(true)
+          try {
+            const { data: { session } } = await supabase.auth.getSession()
+            const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-drive-oauth-start`, {
+              method: "POST", headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+            })
+            const body = await response.json()
+            if (!response.ok || !body.authorizationUrl) throw new Error(body.error ?? "Could not start Google Drive authorization")
+            window.location.assign(body.authorizationUrl)
+          } catch (error) { window.alert(error instanceof Error ? error.message : "Could not connect Google Drive") }
+          finally { setConnectingDrive(false) }
+        }}>{connectingDrive ? "Opening Google…" : "Reconnect Google Drive"}</Button>
+        </div>
+      </section>
     </div>
   )
 }

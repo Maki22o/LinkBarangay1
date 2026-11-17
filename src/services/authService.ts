@@ -18,15 +18,8 @@ export interface SignUpInput {
 /** Client-side baseline. Also set the same minimum in Supabase Auth settings
  * so direct API calls cannot bypass this UI validation. */
 export function validatePassword(password: string): string | null {
-  if (password.length < 12) return "Use at least 12 characters."
-  if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
-    return "Include uppercase and lowercase letters and a number."
-  }
+  if (password.length < 8) return "Use at least 8 characters."
   if (/\s/.test(password)) return "Do not use spaces in your password."
-  const weak = ["password", "qwerty", "123456", "linkbarangay"]
-  if (weak.some((value) => password.toLowerCase().includes(value))) {
-    return "Choose a less predictable password."
-  }
   return null
 }
 
@@ -64,8 +57,8 @@ export async function signIn(email: string, password: string) {
  * provisions the lb_profiles row with role='resident' — the role is never
  * taken from client input. A worker request becomes status='pending' until
  * an administrator approves it (migration 0013).
- * Returns whether the session is immediately available (false when the
- * project requires email confirmation).
+ * The project must keep Supabase Auth email confirmation disabled so the
+ * applicant can immediately submit the required private ID document.
  */
 export async function signUpResident(input: SignUpInput) {
   const passwordError = validatePassword(input.password)
@@ -85,7 +78,10 @@ export async function signUpResident(input: SignUpInput) {
     },
   })
   if (error) throw new Error(mapAuthError(error))
-  return { session: data.session, needsEmailConfirmation: data.session === null }
+  if (!data.session?.user) {
+    throw new Error("Registration was created, but automatic sign-in is unavailable. Disable Confirm email in Supabase Authentication → Providers → Email, then try again.")
+  }
+  return { session: data.session }
 }
 
 export async function signOut() {

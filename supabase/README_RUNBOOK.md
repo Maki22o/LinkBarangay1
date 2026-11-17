@@ -116,9 +116,9 @@ Management — admin-only, DB-enforced, audited. Admin cannot be selected there.
 
 ## Step 5 — Supabase Auth settings to review (Dashboard → Authentication)
 
-- **Email confirmation**: if "Confirm email" is ON, new residents will see a
-  "check your email" screen after registering. Turn it OFF if you want
-  instant sign-in for testing.
+- **Email confirmation**: keep "Confirm email" OFF. New resident and staff
+  applicants need an immediate session so the required private ID/address
+  document is submitted in the same registration flow.
 - **Site URL / redirect URLs**: add your dev origin (`http://127.0.0.1:8443`).
   Set **Site URL** to `http://127.0.0.1:8443` for this local preview and add
   that exact origin under **Redirect URLs**. Use the real HTTPS app origin in
@@ -127,23 +127,53 @@ Management — admin-only, DB-enforced, audited. Admin cannot be selected there.
 
 ## Production security checklist (required before launch)
 
-- **Email confirmation**: turn this ON for the deployed site. The app supports
-  the confirmation flow, but this setting is controlled in the Supabase
-  dashboard.
-- **Password policy**: set the Supabase Auth minimum password length to **12**.
-  The UI also requires uppercase, lowercase, and a number, but the dashboard
-  minimum prevents direct Auth API signups using shorter passwords.
+- **Email confirmation**: keep this OFF. Identity/address review and staff
+  activation are performed by administrators in the application.
+- **Password policy**: set the Supabase Auth minimum password length to **8**.
+  This matches the UI and prevents direct Auth API signups using shorter passwords.
 - **Leaked-password protection**: enable it in Supabase Auth if available on
   your plan.
 - **CAPTCHA**: configure Turnstile or hCaptcha in Supabase Auth before enabling
   it. Do not add a CAPTCHA site or secret key to this repository.
-- **MFA**: staff and administrators can enroll a TOTP authenticator from **My
-  Profile → Two-factor authentication**. Make it a required operating policy
-  for all privileged accounts before granting them access to resident IDs.
 - **Resident documents**: keep the storage bucket private, review access and
   audit logs regularly, and establish a written retention/deletion schedule.
   Virus/malware scanning requires a separate trusted scanning provider; do not
   preview untrusted office documents or executables.
+
+## Phase 1 launch-blocker deployment (staging first)
+
+Do **not** run this section first on production. Create a Supabase staging
+project with the same Auth settings, schema, Storage buckets, and Edge
+Functions, then apply the approved migrations in numeric order. The current
+Phase 1 sequence is:
+
+1. `0029_support_requests_and_identity_guards.sql`
+2. `0030_public_abuse_protection.sql`
+3. `0031_disable_anonymous_reporting.sql`
+4. `0032_dispatcher_barangay_scope.sql`
+5. `0033_reference_only_public_tracking.sql`
+6. `0034_privileged_mfa_and_secure_public_tracking.sql`
+7. `0035_staff_application_identity_verification.sql`
+8. `0036_remove_mfa_enforcement.sql`
+
+`0036` removes the MFA gate and database MFA requirement while retaining
+role-based access controls, administrator approval, and identity/address
+verification for public staff applicants.
+
+New public tracking references become `LB-` plus 32 uppercase hexadecimal
+characters. They are safe to enter in the public Track a Request screen and
+return only generic status history. Legacy short references are **not**
+publicly trackable after this migration; the resident must sign in to view
+those existing requests.
+
+In Dashboard → Authentication, before staging verification and production:
+
+- turn on **Confirm email** and add the exact staging/production HTTPS URLs;
+- configure and enforce **CAPTCHA** for sign-up, sign-in, and password reset;
+- require a **12-character** password minimum and enable leaked-password
+  protection when available on the project plan;
+- verify that TOTP MFA is enabled; then run the manual role tests in
+  `supabase/verification/phase1_staging_checklist.md`.
 
 ## Step 6 — Test accounts
 
@@ -160,6 +190,33 @@ access within seconds (every RLS policy and RPC validates live status).
 However, Supabase does not let a client invalidate another user's existing JWT
 — for immediate session termination, use Dashboard → Authentication → Users →
 remove session, or the CLI. This is a platform limitation, not a policy gap.
+
+## Google Drive off-site backup
+
+The project contains the `backup-to-google-drive` Edge Function and migration
+`0037_google_drive_backup_audit.sql`. It exports the LinkBarangay application
+tables and copies files from the private `request-attachments` and
+`resident-verification-ids` buckets into a dated folder in Google Drive. It is
+an application-data backup, not a replacement for Supabase's managed database
+backup/PITR service.
+
+Before deployment:
+
+1. In Google Cloud Console, create a service account, enable **Google Drive API**,
+   create a JSON key, then share the [LinkBarangay Backups](https://drive.google.com/drive/folders/1STpSw83XV3Ns0AvtFE7BoBaNVIp7L5SN)
+   folder with that service-account email as **Editor**.
+2. Store the entire JSON key in the Edge Function secret
+   `GOOGLE_SERVICE_ACCOUNT_JSON` (never commit or paste it in the frontend),
+   and set `GOOGLE_DRIVE_BACKUP_FOLDER_ID=1STpSw83XV3Ns0AvtFE7BoBaNVIp7L5SN`.
+3. Set a long random `BACKUP_CRON_TOKEN`; an external scheduler or Supabase Cron
+   must send it in the `x-backup-schedule-token` header. Manual POST calls are
+   limited to active administrators.
+4. Apply migration 0037, deploy the function, run one manual backup, then only
+   enable the daily schedule after checking its `manifest.json` and
+   `lb_backup_runs` entry.
+
+Do not remove files from the source storage buckets because they exist in a
+backup. Retention and restore testing must be owned by an administrator.
 
 ## Diagnostic: verify RLS is active
 

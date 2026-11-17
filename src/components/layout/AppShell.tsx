@@ -45,6 +45,7 @@ export function AppShell({
   const badge = notificationBadge(unreadCount)
   const unreadLabel = `Notifications (${unreadCount} unread)`
   const nav = navForProfile(profile)
+  const isBarangayStaff = profile.role === "worker" && profile.worker_function === "barangay_staff"
   const scopeText =
     profile.barangay?.name
       ? `Barangay ${profile.barangay.name}`
@@ -54,7 +55,7 @@ export function AppShell({
 
   return (
     <div className="app-shell">
-      <aside className={`sidebar ${mobileOpen ? "open" : ""}`}>
+      <aside className={`sidebar ${isBarangayStaff ? "staff-sidebar" : ""} ${mobileOpen ? "open" : ""}`}>
         <div className="sidebar-brand">
           <Logo />
           <button onClick={() => setMobileOpen(false)} aria-label="Close menu">

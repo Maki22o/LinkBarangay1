@@ -1,6 +1,6 @@
 // ============================================================================
 // LinkBarangay — authentication screens, wired to Supabase Auth.
-// Modes: login · register (resident-only) · anonymous report · public tracking
+// Modes: login · registration (resident or pending staff application)
 // ============================================================================
 
 import { useEffect, useState } from "react"
@@ -16,7 +16,6 @@ import {
   signUpResident,
   validatePassword,
 } from "@/services/authService"
-import { fetchProfile } from "@/services/profileService"
 import {
   submitAnonymousReport,
   trackRequest,
@@ -30,7 +29,7 @@ import { supabase } from "@/lib/supabase"
 import { STATUS_LABELS } from "@/types"
 import type { Barangay, ServiceCategory, ViewId } from "@/types"
 
-type AuthMode = "login" | "register" | "anonymous" | "track"
+type AuthMode = "login" | "register" | "track"
 type AccountType = "resident" | "worker"
 
 function RoleSelect({
@@ -63,8 +62,7 @@ function RoleSelect({
 const titles: Record<AuthMode, [string, string]> = {
   login: ["Welcome back", "Sign in to view and manage your requests."],
   register: ["Create your account", "Register once to access barangay services online."],
-  anonymous: ["Report anonymously", "Submit a concern without creating an account."],
-  track: ["Track a request", "Enter your reference number and secure tracking code."],
+  track: ["Track a request", "Enter your reference number to view its current status."],
 }
 
 export function AuthScreen({
@@ -146,7 +144,6 @@ export function AuthScreen({
 
           {mode === "login" && <LoginForm navigate={navigate} />}
           {mode === "register" && <RegisterForm barangays={barangays} navigate={navigate} />}
-          {mode === "anonymous" && <AnonymousForm categories={categories} />}
           {mode === "track" && <TrackForm />}
         </div>
       </main>
@@ -268,9 +265,8 @@ function LoginForm({ navigate }: { navigate: (view: ViewId) => void }) {
     setError(null)
     setBusy(true)
     try {
-      // Session is picked up by AuthProvider; the app redirects automatically.
-      const { user } = await signIn(email, password)
-      await fetchProfile(user.id)
+      await signIn(email, password)
+      // AuthProvider reads the stored role and routes to the correct workspace.
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -364,7 +360,6 @@ function RegisterForm({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirmPending, setConfirmPending] = useState(false)
-  const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false)
   const [accountType, setAccountType] = useState<AccountType>("resident")
 
   const submit = async (event: React.FormEvent) => {
@@ -397,26 +392,11 @@ function RegisterForm({
         barangayId,
         accountType,
       })
-      setNeedsEmailConfirm(result.needsEmailConfirmation)
-      if (result.needsEmailConfirmation) {
-        setConfirmPending(true)
-      } else if (accountType === "worker") {
-        try {
-          if (!result.session?.user.id || !residentIdFile) throw new Error("No session")
-          await submitResidentId(result.session.user.id, residentIdFile)
-        } catch {
-          await signOut()
-          setError("Your staff application was created, but the ID upload failed. Contact the barangay administrator to submit your ID.")
-          return
-        }
-        await signOut()
-        setConfirmPending(true)
-      } else {
-        if (!result.session?.user.id || !residentIdFile) throw new Error("Sign in again and upload your ID from My Profile to finish verification.")
-        await submitResidentId(result.session.user.id, residentIdFile)
-        await refreshProfile()
-        setConfirmPending(true)
-      }
+      if (!result.session?.user.id || !residentIdFile) throw new Error("Could not start the identity-verification step. Please try again.")
+      await submitResidentId(result.session.user.id, residentIdFile)
+      await refreshProfile()
+      if (accountType === "worker") await signOut()
+      setConfirmPending(true)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -463,11 +443,7 @@ function RegisterForm({
               ]}
             />
           </Field>
-          <Field
-            label="Valid ID or document with full residential address"
-            required
-            hint="Any valid ID or document that clearly shows your complete address · JPG, PNG, WebP, or PDF · up to 10 MB · visible only to administrators"
-          >
+          <Field label="Valid ID or document with full residential address" required hint="Required for resident and staff applications. It must clearly show your complete address · JPG, PNG, WebP, or PDF · up to 10 MB · visible only to administrators">
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp,application/pdf"
@@ -484,7 +460,7 @@ function RegisterForm({
               required
             />
           </Field>
-          <Field label="Create password" hint="At least 12 characters, with uppercase, lowercase, and a number" required>
+          <Field label="Create password" hint="At least 8 characters." required>
             <PasswordInput
               value={password}
               onChange={setPassword}
@@ -515,12 +491,7 @@ function RegisterForm({
             <Notice tone="success">
               {accountType === "worker" ? (
                 <>
-                  <strong>Worker account submitted.</strong> Your account for <b>{email}</b>{" "}
-                  is waiting for administrator approval. You can sign in after it is approved.
-                </>
-              ) : needsEmailConfirm ? (
-                <>
-                  <strong>Confirm your email first.</strong> We sent a confirmation link to <b>{email}</b>. After confirming, sign in and upload your ID from My Profile so an administrator can review your resident account.
+                  <strong>Staff application submitted.</strong> Your identity and residential-address document are waiting for administrator review. Please wait for the approval decision; we will notify you using your registered contact details.
                 </>
               ) : (
                 <>
@@ -665,11 +636,10 @@ function AnonymousForm({ categories }: { categories: ServiceCategory[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Public tracking (reference number + secure code; no login)
+// Public tracking (reference number only; no login)
 // ---------------------------------------------------------------------------
 function TrackForm() {
   const [reference, setReference] = useState("")
-  const [code, setCode] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<TrackedRequest | null>(null)
@@ -679,9 +649,9 @@ function TrackForm() {
     setError(null)
     setBusy(true)
     try {
-      const tracked = await trackRequest(reference, code)
+      const tracked = await trackRequest(reference)
       if (!tracked.found) {
-        setError("No request matches that reference number and tracking code.")
+        setError("No request matches that reference number.")
       } else {
         setResult(tracked)
       }
@@ -700,7 +670,7 @@ function TrackForm() {
         <div className="result-top">
           <div>
             <span className="mini-label">MATCH FOUND</span>
-            <h3>{String(req.title)}</h3>
+            <h3>Request status</h3>
             <p>Reference {String(req.reference)}</p>
           </div>
           <Status status={status} />
@@ -718,9 +688,7 @@ function TrackForm() {
                     : update.type.replaceAll("_", " ")}
                 </strong>
                 <small>
-                  {update.actor !== "System" ? `${update.actor} · ` : ""}
                   {new Date(update.at).toLocaleString()}
-                  {update.remarks ? ` — ${update.remarks}` : ""}
                 </small>
               </span>
             </div>
@@ -740,21 +708,13 @@ function TrackForm() {
           <TextInput
             value={reference}
             onChange={setReference}
-            placeholder="e.g. LB-2026-0428"
-            required
-          />
-        </Field>
-        <Field label="Secure tracking code" required>
-          <TextInput
-            value={code}
-            onChange={setCode}
-            placeholder="6-character code"
+            placeholder="e.g. LB-12A3B4C5D6E7F8090A1B2C3D4E5F6789"
             required
           />
         </Field>
         <div className="notice">
           <Icon name="shield" />
-          <p>Your tracking code is shown in your confirmation receipt.</p>
+          <p>Enter the reference number shown in your request confirmation.</p>
         </div>
         {error && <Notice tone="error">{error}</Notice>}
         <Button type="submit" className="full-width" icon="search" disabled={busy}>

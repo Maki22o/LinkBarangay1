@@ -48,6 +48,7 @@ export function requestRealtimeFilter(profile: Profile): string | undefined {
     return profile.barangay_id ? `barangay_id=eq.${profile.barangay_id}` : undefined
   }
   if (profile.worker_function === "dispatcher") {
+    // Realtime accepts one filter only; RLS enforces the additional barangay scope.
     return profile.department_id ? `department_id=eq.${profile.department_id}` : undefined
   }
   return undefined
@@ -80,7 +81,9 @@ export async function listRequests(profile: Profile, filters: RequestListFilters
   else if (profile.role === "worker" && profile.worker_function === "barangay_staff")
     query = query.eq("barangay_id", profile.barangay_id ?? "00000000-0000-0000-0000-000000000000")
   else if (profile.role === "worker" && profile.worker_function === "dispatcher")
-    query = query.eq("department_id", profile.department_id ?? "00000000-0000-0000-0000-000000000000")
+    query = query
+      .eq("department_id", profile.department_id ?? "00000000-0000-0000-0000-000000000000")
+      .eq("barangay_id", profile.barangay_id ?? "00000000-0000-0000-0000-000000000000")
 
   if (filters.status) query = query.eq("status", filters.status)
   if (filters.priority === "normal") query = query.in("priority", ["normal", "medium"])
@@ -253,50 +256,19 @@ export async function assignField(
   return (data as { assignment_id: string }).assignment_id
 }
 
-// ---------------------------------------------------------------------------
-// Public (no authentication required)
-// ---------------------------------------------------------------------------
-
-export interface AnonymousResult {
-  id: string
-  reference: string
-  tracking_code: string
-}
-
-export async function submitAnonymousReport(input: {
-  title: string
-  description: string
-  category_id?: string | null
-  location?: string | null
-}): Promise<AnonymousResult> {
-  const { data, error } = await supabase.rpc("app_submit_anonymous_report", {
-    p_title: input.title,
-    p_description: input.description,
-    p_category_id: input.category_id ?? null,
-    p_location: input.location ?? null,
-  })
-  if (error) throw new Error(error.message)
-  return data as AnonymousResult
-}
-
+// Anonymous reporting is retired. Public request tracking remains available
+// by reference number, and deliberately exposes status-only information.
+export interface AnonymousResult { id: string; reference: string; tracking_code: string }
 export interface TrackedRequest {
   found: boolean
   request?: Record<string, unknown>
-  updates?: {
-    type: string
-    previous_status: string | null
-    new_status: string | null
-    remarks: string
-    actor: string
-    at: string
-  }[]
+  updates?: { type: string; previous_status: string | null; new_status: string | null; at: string }[]
 }
-
-export async function trackRequest(reference: string, code: string): Promise<TrackedRequest> {
-  const { data, error } = await supabase.rpc("app_track_request", {
-    p_reference: reference.trim(),
-    p_code: code.trim(),
-  })
+export async function submitAnonymousReport(..._args: unknown[]): Promise<AnonymousResult> {
+  throw new Error("Anonymous reporting is no longer available.")
+}
+export async function trackRequest(reference: string): Promise<TrackedRequest> {
+  const { data, error } = await supabase.rpc("app_track_request", { p_reference: reference.trim() })
   if (error) throw new Error(error.message)
   return data as TrackedRequest
 }

@@ -82,7 +82,6 @@ Deno.serve(async (req: Request) => {
   if (callerProfile.role !== "admin" || callerProfile.status !== "active") {
     return json({ error: "Only active administrators may create staff accounts" }, 403);
   }
-
   // ---- 2. Validate the payload --------------------------------------------
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") return json({ error: "Invalid JSON body" }, 400);

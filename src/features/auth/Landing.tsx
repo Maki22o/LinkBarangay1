@@ -43,9 +43,6 @@ export function Landing({ navigate }: { navigate: (view: ViewId) => void }) {
             <a href="#help">Help center</a>
           </nav>
           <div className="nav-actions">
-            <Button variant="ghost" onClick={() => navigate("track")}>
-              Track a request
-            </Button>
             <Button onClick={() => navigate("login")}>Sign in</Button>
           </div>
         </div>
@@ -70,13 +67,7 @@ export function Landing({ navigate }: { navigate: (view: ViewId) => void }) {
                 <Button icon="plus" onClick={() => navigate("login")}>
                   Submit a request
                 </Button>
-                <Button
-                  variant="secondary"
-                  icon="search"
-                  onClick={() => navigate("track")}
-                >
-                  Track a request
-                </Button>
+                <Button variant="secondary" icon="search" onClick={() => navigate("track")}>Track a request</Button>
               </div>
               <div className="trust-row">
                 <span>
@@ -253,8 +244,8 @@ export function Landing({ navigate }: { navigate: (view: ViewId) => void }) {
               </p>
             </div>
           </div>
-          <Button variant="secondary" onClick={() => navigate("anonymous")}>
-            Report anonymously
+          <Button variant="secondary" onClick={() => navigate("register")}>
+            Create an account
           </Button>
         </section>
       </main>

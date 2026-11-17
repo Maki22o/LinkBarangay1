@@ -64,7 +64,6 @@ const PUBLIC_VIEWS: ReadonlySet<string> = new Set([
   "landing",
   "login",
   "register",
-  "anonymous",
   "track",
 ])
 
@@ -131,11 +130,11 @@ function Root() {
 
   // Public flow (not signed in)
   if (!session || !profile) {
-    const current = PUBLIC_VIEWS.has(view) ? (view as "landing") : "landing"
+    const current = PUBLIC_VIEWS.has(view) ? (view as "landing" | "login" | "register" | "track") : "landing"
     if (current === "landing") return <Landing navigate={setView} />
     return (
       <AuthScreen
-        mode={current as "login" | "register" | "anonymous" | "track"}
+        mode={current as "login" | "register" | "track"}
         navigate={setView}
       />
     )

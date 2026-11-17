@@ -35,8 +35,8 @@ export function DeptQueuePage({
     setFilters((current) => ({ ...current, [key]: value, page: 0 }))
   const categories = useAsync(() => listCategories(true), [])
   const list = useAsync(
-    () => profile?.department_id ? listDispatchQueue(profile.department_id, filters) : Promise.resolve({ rows: [], hasNext: false }),
-    [profile?.department_id, filters],
+    () => profile?.department_id && profile?.barangay_id ? listDispatchQueue(profile.department_id, profile.barangay_id, filters) : Promise.resolve({ rows: [], hasNext: false }),
+    [profile?.department_id, profile?.barangay_id, filters],
   )
   const requestFilter = profile ? requestRealtimeFilter(profile) : undefined
   useRequestRealtimeRefresh(list.refresh, {
@@ -52,7 +52,7 @@ export function DeptQueuePage({
           <span className="page-kicker">DEPARTMENT OPERATIONS</span>
           <h1>Department Queue</h1>
           <p>
-            Pending appointments and active requests for {profile?.department?.name ?? "your department"}.
+            Pending appointments and active requests for Barangay {profile?.barangay?.name ?? "your barangay"}.
           </p>
         </div>
         <Button variant="secondary" icon="clock" onClick={() => setView("assignments")}>Appointment calendar</Button>
@@ -90,6 +90,7 @@ export function DeptQueuePage({
               <thead>
                 <tr>
                   <th>Reference</th>
+                  <th>Date submitted</th>
                   <th>Request</th>
                   <th>Location</th>
                   <th>Appointment and personnel</th>
@@ -104,7 +105,11 @@ export function DeptQueuePage({
                     ["verified", "assigned", "in_progress"].includes(request.status)
                   return (
                     <tr key={request.id}>
-                      <td className="ref">{formatRef(request.reference)}<small className="queue-detail">{manilaDateTime(request.created_at)}</small></td>
+                      <td className="ref">{formatRef(request.reference)}</td>
+                      <td>
+                        <strong>{manilaDateTime(request.created_at)}</strong>
+                        <small className="queue-detail">Philippine time</small>
+                      </td>
                       <td>
                         <div className="request-cell">
                           <strong>{request.title}</strong>
@@ -253,7 +258,7 @@ export function AssignmentsPage({
 // ---------------------------------------------------------------------------
 export function PersonnelPage() {
   const { profile } = useAuth()
-  const staff = useAsync(() => listFieldPersonnel(profile?.department_id ?? null), [profile?.id, profile?.department_id])
+  const staff = useAsync(() => listFieldPersonnel(profile?.department_id ?? null, profile?.barangay_id ?? null), [profile?.id, profile?.department_id, profile?.barangay_id])
   const assignments = useAsync(
     () => listDepartmentAssignments(profile?.department_id ?? null),
     [profile?.id, profile?.department_id],
@@ -275,7 +280,7 @@ export function PersonnelPage() {
         <div>
           <span className="page-kicker">DEPARTMENT OPERATIONS</span>
           <h1>Personnel</h1>
-          <p>Field personnel of {profile?.department?.name ?? "your department"}.</p>
+          <p>Field personnel assigned to Barangay {profile?.barangay?.name ?? "your barangay"}.</p>
         </div>
       </div>
       <div className="panel">

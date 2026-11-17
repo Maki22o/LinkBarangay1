@@ -61,7 +61,7 @@ export function StaffDashboard({
     () =>
       role === "barangay_staff"
         ? listBarangayStaff(profile?.barangay_id ?? null)
-        : listFieldPersonnel(profile?.department_id ?? null),
+        : listFieldPersonnel(profile?.department_id ?? null, profile?.barangay_id ?? null),
     [profile?.id, profile?.role, profile?.worker_function, profile?.barangay_id, profile?.department_id],
   )
   const appointments = useAsync(

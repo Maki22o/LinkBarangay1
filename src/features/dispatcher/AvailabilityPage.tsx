@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/common/ui"
 import { ErrorState, LoadingState, Notice } from "@/components/common/States"
+import { Field } from "@/components/forms/fields"
 import { useAsync } from "@/hooks/useAsync"
 import { useAuth } from "@/hooks/useAuth"
 import { listAvailability, saveAvailability } from "@/services/availabilityService"
@@ -19,7 +20,9 @@ export function AvailabilityPage() {
   useEffect(() => {
     if (data.data) setWindows(DEFAULTS().map((fallback) => {
       const stored = data.data?.find((window) => window.day_of_week === fallback.day_of_week)
-      return stored ? { day_of_week: stored.day_of_week, start_time: stored.start_time.slice(0,5), end_time: stored.end_time.slice(0,5), is_available: stored.is_available } : { ...fallback, is_available: false }
+      return stored
+        ? { day_of_week: stored.day_of_week, start_time: stored.start_time.slice(0,5), end_time: stored.end_time.slice(0,5), is_available: stored.is_available }
+        : fallback
     }))
   }, [data.data])
   if (data.loading) return <LoadingState label="Loading availability…" />
@@ -41,15 +44,17 @@ export function AvailabilityPage() {
   return <div>
     <div className="welcome-row"><div><span className="page-kicker">DEPARTMENT OPERATIONS</span><h1>Dispatcher Availability</h1><p>Set the hours when appointments may be scheduled. Times use Philippine local time.</p></div></div>
     {notice && <Notice tone="success">{notice}</Notice>}{error && <Notice tone="error">{error}</Notice>}
-    <section className="panel padded">
-      <div className="table-wrap"><table><thead><tr><th>Day</th><th>Available</th><th>Start</th><th>End</th></tr></thead>
-        <tbody>{windows.map((window) => <tr key={window.day_of_week}>
-          <td><strong>{DAYS[window.day_of_week]}</strong></td>
-          <td><input aria-label={`${DAYS[window.day_of_week]} available`} type="checkbox" checked={window.is_available} onChange={(event) => setWindows((current) => current.map((item) => item.day_of_week === window.day_of_week ? { ...item, is_available: event.target.checked } : item))} /></td>
-          <td><input aria-label={`${DAYS[window.day_of_week]} start`} type="time" value={window.start_time} disabled={!window.is_available} onChange={(event) => setWindows((current) => current.map((item) => item.day_of_week === window.day_of_week ? { ...item, start_time: event.target.value } : item))} /></td>
-          <td><input aria-label={`${DAYS[window.day_of_week]} end`} type="time" value={window.end_time} disabled={!window.is_available} onChange={(event) => setWindows((current) => current.map((item) => item.day_of_week === window.day_of_week ? { ...item, end_time: event.target.value } : item))} /></td>
-        </tr>)}</tbody></table></div>
-      <div className="modal-actions"><Button disabled={saving} onClick={() => void save()}>{saving ? "Saving…" : "Save availability"}</Button></div>
+    <section className="panel schedule-form">
+      <h2>Regular availability hours</h2>
+      {windows.map((window) => <div className="working-hours-row" key={window.day_of_week}>
+        <label className="schedule-check"><input aria-label={`${DAYS[window.day_of_week]} available`} type="checkbox" checked={window.is_available}
+          onChange={(event) => setWindows((current) => current.map((item) => item.day_of_week === window.day_of_week ? { ...item, is_available: event.target.checked } : item))} />{DAYS[window.day_of_week]}</label>
+        <Field label="Start"><input aria-label={`${DAYS[window.day_of_week]} start`} type="time" value={window.start_time} disabled={!window.is_available}
+          onChange={(event) => setWindows((current) => current.map((item) => item.day_of_week === window.day_of_week ? { ...item, start_time: event.target.value } : item))} /></Field>
+        <Field label="End"><input aria-label={`${DAYS[window.day_of_week]} end`} type="time" value={window.end_time} disabled={!window.is_available}
+          onChange={(event) => setWindows((current) => current.map((item) => item.day_of_week === window.day_of_week ? { ...item, end_time: event.target.value } : item))} /></Field>
+      </div>)}
+      <div><Button disabled={saving} onClick={() => void save()}>{saving ? "Saving…" : "Save availability"}</Button></div>
     </section>
   </div>
 }

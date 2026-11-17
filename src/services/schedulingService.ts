@@ -131,7 +131,7 @@ export async function listFieldBookings(departmentId: string | null, start: stri
   return (data ?? []) as unknown as FieldBooking[]
 }
 
-export async function listDispatchQueue(departmentId: string, filters: {
+export async function listDispatchQueue(departmentId: string, barangayId: string, filters: {
   status: string
   priority: string
   category: string
@@ -141,7 +141,8 @@ export async function listDispatchQueue(departmentId: string, filters: {
   page: number
 }) {
   const pageSize = 25
-  let query = supabase.from("lb_dispatch_queue").select("*", { count: "exact" }).eq("department_id", departmentId)
+  let query = supabase.from("lb_dispatch_queue").select("*", { count: "exact" })
+    .eq("department_id", departmentId).eq("barangay_id", barangayId)
   if (filters.status === "pending") query = query.eq("appointment_status", "pending")
   else if (filters.status) query = query.eq("status", filters.status)
   if (filters.priority === "normal") query = query.in("priority", ["normal", "medium"])

@@ -13,7 +13,6 @@ import { useAuth } from "@/hooks/useAuth"
 import { updateOwnProfile } from "@/services/profileService"
 import { submitResidentId, validateResidentId } from "@/services/residentVerificationService"
 import { profileRoleLabel } from "@/types"
-import { MfaSecurityPanel } from "@/features/shared/MfaSecurityPanel"
 
 export function ProfilePage() {
   const { profile, refreshProfile } = useAuth()
@@ -61,7 +60,12 @@ export function ProfilePage() {
   const completion = [fullName, profile.email, mobile, address, profile.barangay_id].filter(
     Boolean,
   ).length
-  const verificationStatus = profile.role === "resident" ? (profile.verification?.status ?? "pending") : null
+  // A public staff application is intentionally created as a pending resident
+  // profile. This lets the applicant upload the same private ID/address proof
+  // before an administrator assigns any worker role or scope.
+  const isPendingStaffApplication = profile.role === "resident" && profile.status === "pending"
+  const needsAddressVerification = profile.role === "resident"
+  const verificationStatus = needsAddressVerification ? (profile.verification?.status ?? "pending") : null
 
   const submitId = async () => {
     if (!idFile) { setIdError("Choose your ID document first."); return }
@@ -151,12 +155,14 @@ export function ProfilePage() {
         </form>
       </div>
 
-      {profile.role === "resident" && (
+      {needsAddressVerification && (
         <section className="panel" style={{ marginTop: 16, padding: 22 }}>
           <div className="panel-head">
             <div>
-              <h2>Address verification</h2>
-              <p>Requests unlock after an administrator confirms your ID and residential address.</p>
+              <h2>{isPendingStaffApplication ? "Staff application verification" : "Address verification"}</h2>
+              <p>{isPendingStaffApplication
+                ? "Staff access is unavailable until an administrator confirms your ID and residential address, then assigns your staff role and scope."
+                : "Requests unlock after an administrator confirms your ID and residential address."}</p>
             </div>
             <Status status={verificationStatus ?? "pending"} />
           </div>
@@ -167,10 +173,10 @@ export function ProfilePage() {
             <Notice tone="info">Your document is awaiting administrator review.</Notice>
           )}
           {verificationStatus === "approved" ? (
-            <Notice tone="success">Your resident account is approved. You can submit service requests.</Notice>
+            <Notice tone="success">{isPendingStaffApplication ? "Your identity document is approved. An administrator can now assign your staff role and scope." : "Your resident account is approved. You can submit service requests."}</Notice>
           ) : (
             <div className="profile-fields" style={{ marginTop: 14 }}>
-              <Field label="Government-issued ID showing your complete home address" required>
+              <Field label="Valid ID or document showing your complete home address" required>
                 <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setIdFile(event.target.files?.[0] ?? null)} />
               </Field>
               {idError && <Notice tone="error">{idError}</Notice>}
@@ -183,7 +189,6 @@ export function ProfilePage() {
         </section>
       )}
 
-      {(profile.role === "admin" || profile.role === "worker") && <MfaSecurityPanel />}
     </div>
   )
 }
