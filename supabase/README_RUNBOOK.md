@@ -125,6 +125,26 @@ Management — admin-only, DB-enforced, audited. Admin cannot be selected there.
   production. Invitation, registration-confirmation, and password-reset links
   now return to the app so it can finish account setup.
 
+## Production security checklist (required before launch)
+
+- **Email confirmation**: turn this ON for the deployed site. The app supports
+  the confirmation flow, but this setting is controlled in the Supabase
+  dashboard.
+- **Password policy**: set the Supabase Auth minimum password length to **12**.
+  The UI also requires uppercase, lowercase, and a number, but the dashboard
+  minimum prevents direct Auth API signups using shorter passwords.
+- **Leaked-password protection**: enable it in Supabase Auth if available on
+  your plan.
+- **CAPTCHA**: configure Turnstile or hCaptcha in Supabase Auth before enabling
+  it. Do not add a CAPTCHA site or secret key to this repository.
+- **MFA**: staff and administrators can enroll a TOTP authenticator from **My
+  Profile → Two-factor authentication**. Make it a required operating policy
+  for all privileged accounts before granting them access to resident IDs.
+- **Resident documents**: keep the storage bucket private, review access and
+  audit logs regularly, and establish a written retention/deletion schedule.
+  Virus/malware scanning requires a separate trusted scanning provider; do not
+  preview untrusted office documents or executables.
+
 ## Step 6 — Test accounts
 
 Fastest way: create real signups via the app (residents), then elevate staff

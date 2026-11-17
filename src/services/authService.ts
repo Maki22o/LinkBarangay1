@@ -15,6 +15,21 @@ export interface SignUpInput {
   accountType?: "resident" | "worker"
 }
 
+/** Client-side baseline. Also set the same minimum in Supabase Auth settings
+ * so direct API calls cannot bypass this UI validation. */
+export function validatePassword(password: string): string | null {
+  if (password.length < 12) return "Use at least 12 characters."
+  if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+    return "Include uppercase and lowercase letters and a number."
+  }
+  if (/\s/.test(password)) return "Do not use spaces in your password."
+  const weak = ["password", "qwerty", "123456", "linkbarangay"]
+  if (weak.some((value) => password.toLowerCase().includes(value))) {
+    return "Choose a less predictable password."
+  }
+  return null
+}
+
 /** Maps raw Supabase auth errors to resident-friendly messages. */
 export function mapAuthError(error: { message?: string } | null | undefined): string {
   const raw = (error?.message ?? "").toLowerCase()
@@ -53,6 +68,8 @@ export async function signIn(email: string, password: string) {
  * project requires email confirmation).
  */
 export async function signUpResident(input: SignUpInput) {
+  const passwordError = validatePassword(input.password)
+  if (passwordError) throw new Error(passwordError)
   const { data, error } = await supabase.auth.signUp({
     email: input.email.trim().toLowerCase(),
     password: input.password,

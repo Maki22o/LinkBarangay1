@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { updateOwnProfile } from "@/services/profileService"
 import { submitResidentId, validateResidentId } from "@/services/residentVerificationService"
 import { profileRoleLabel } from "@/types"
+import { MfaSecurityPanel } from "@/features/shared/MfaSecurityPanel"
 
 export function ProfilePage() {
   const { profile, refreshProfile } = useAuth()
@@ -181,6 +182,8 @@ export function ProfilePage() {
           )}
         </section>
       )}
+
+      {(profile.role === "admin" || profile.role === "worker") && <MfaSecurityPanel />}
     </div>
   )
 }

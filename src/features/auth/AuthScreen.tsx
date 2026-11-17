@@ -14,6 +14,7 @@ import {
   signIn,
   signOut,
   signUpResident,
+  validatePassword,
 } from "@/services/authService"
 import { fetchProfile } from "@/services/profileService"
 import {
@@ -40,7 +41,7 @@ function RoleSelect({
   onChange: (value: AccountType) => void
 }) {
   return (
-    <Field label="I am a" required>
+    <Field label="Account application" hint="Staff applications need administrator approval before they receive any staff access." required>
       <div className="role-toggle" role="radiogroup" aria-label="Account type">
         {(["resident", "worker"] as const).map((r) => (
           <button
@@ -51,7 +52,7 @@ function RoleSelect({
             className={value === r ? "active" : ""}
             onClick={() => onChange(r)}
           >
-            {r === "resident" ? "Resident" : "Worker"}
+            {r === "resident" ? "Resident account" : "Apply for Barangay Staff access"}
           </button>
         ))}
       </div>
@@ -195,8 +196,9 @@ export function SetPasswordScreen({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setError(null)
-    if (password.length < 8) {
-      setError("Use a password with at least 8 characters.")
+    const passwordError = validatePassword(password)
+    if (passwordError) {
+      setError(passwordError)
       return
     }
     if (password !== confirmPassword) {
@@ -260,7 +262,6 @@ function LoginForm({ navigate }: { navigate: (view: ViewId) => void }) {
   const [busy, setBusy] = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const [resetBusy, setResetBusy] = useState(false)
-  const [accountType, setAccountType] = useState<AccountType>("resident")
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -269,19 +270,7 @@ function LoginForm({ navigate }: { navigate: (view: ViewId) => void }) {
     try {
       // Session is picked up by AuthProvider; the app redirects automatically.
       const { user } = await signIn(email, password)
-      // The chosen account type must match the role stored on the account.
-      const found = await fetchProfile(user.id)
-      if (found && found.status !== "pending") {
-        const isWorker = found.role === "worker" || found.role === "admin"
-        if ((accountType === "worker") !== isWorker) {
-          await signOut()
-          setError(
-            accountType === "worker"
-              ? "This account is not a worker account. Choose Resident to sign in."
-              : "This is a worker account. Choose Worker to sign in.",
-          )
-        }
-      }
+      await fetchProfile(user.id)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -315,7 +304,6 @@ function LoginForm({ navigate }: { navigate: (view: ViewId) => void }) {
         </Notice>
       )}
       <form onSubmit={submit} className="auth-form">
-        <RoleSelect value={accountType} onChange={setAccountType} />
         <Field label="Email address" required>
           <TextInput
             type="email"
@@ -384,6 +372,11 @@ function RegisterForm({
     setError(null)
     if (!barangayId) {
       setError("Select your barangay so your requests can reach the right front desk.")
+      return
+    }
+    const passwordError = validatePassword(password)
+    if (passwordError) {
+      setError(passwordError)
       return
     }
     if (accountType === "resident" && !residentIdFile) {
@@ -481,11 +474,11 @@ function RegisterForm({
               required
             />
           </Field>
-          <Field label="Create password" hint="At least 8 characters" required>
+          <Field label="Create password" hint="At least 12 characters, with uppercase, lowercase, and a number" required>
             <PasswordInput
               value={password}
               onChange={setPassword}
-              placeholder="At least 8 characters"
+              placeholder="Use a strong password"
               required
             />
           </Field>
