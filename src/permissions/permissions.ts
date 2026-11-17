@@ -153,6 +153,7 @@ export const NAV_BY_WORKER_FUNCTION: Record<WorkerFunction, NavItem[]> = {
     { label: "Personnel", icon: "users", view: "personnel" },
     { label: "Workload & SLA", icon: "clock", view: "workload" },
     { label: "Notifications", icon: "bell", view: "notifications" },
+    { label: "My Profile", icon: "user", view: "profile" },
   ],
   field: [
     { label: "My Day", icon: "home", view: "dashboard" },

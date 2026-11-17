@@ -41,7 +41,12 @@ export async function updateOwnProfile(
     .eq("id", userId)
     .select("*")
     .single()
-  if (error) throw new Error(error.message)
+  if (error) {
+    if (error.code === "23505") {
+      throw new Error("This contact number is already in use by another account.")
+    }
+    throw new Error(error.message)
+  }
   return toProfile(data)
 }
 

@@ -2,7 +2,9 @@
 // LinkBarangay — form field primitives (same classes as the wireframe)
 // ============================================================================
 
+import { useState } from "react"
 import type { ReactNode } from "react"
+import { Icon } from "@/components/common/Icon"
 
 export function Field({
   label,
@@ -56,6 +58,39 @@ export function TextInput({
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
     />
+  )
+}
+
+/** Password input with an accessible, local-only visibility toggle. */
+export function PasswordInput({
+  value,
+  onChange,
+  placeholder,
+  name,
+  required,
+}: Omit<Parameters<typeof TextInput>[0], "type" | "disabled">) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <span className="password-input">
+      <input
+        name={name}
+        type={visible ? "text" : "password"}
+        value={value}
+        placeholder={placeholder}
+        required={required}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <button
+        type="button"
+        className="password-visibility"
+        onClick={() => setVisible((shown) => !shown)}
+        aria-label={visible ? "Hide password" : "Show password"}
+        aria-pressed={visible}
+        title={visible ? "Hide password" : "Show password"}
+      >
+        <Icon name="eye" size={18} />
+      </button>
+    </span>
   )
 }
 

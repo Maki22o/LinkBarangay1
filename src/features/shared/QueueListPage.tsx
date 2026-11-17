@@ -16,6 +16,7 @@ export function QueueListPage({
   title,
   subtitle,
   statuses,
+  categorySlug,
   escalatedOnly,
   emptyTitle = "Nothing in this queue",
   emptyHint = "New items appear here automatically.",
@@ -26,6 +27,8 @@ export function QueueListPage({
   title: string
   subtitle: string
   statuses?: RequestStatus[]
+  /** Restrict a specialised queue (such as Documents & Permits) to its category. */
+  categorySlug?: string
   escalatedOnly?: boolean
   emptyTitle?: string
   emptyHint?: string
@@ -53,6 +56,7 @@ export function QueueListPage({
   const rows = all
     .filter((request) => {
       if (escalatedOnly) return request.escalation_count > 0 && !["closed"].includes(request.status)
+      if (categorySlug && request.category?.slug !== categorySlug) return false
       if (!statuses) return true
       return statuses.includes(request.status)
     })

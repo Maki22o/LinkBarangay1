@@ -22,6 +22,8 @@ export function mapAuthError(error: { message?: string } | null | undefined): st
   if (raw.includes("email not confirmed")) return "Please confirm your email address before signing in."
   if (raw.includes("user already registered") || raw.includes("already been registered"))
     return "An account with this email already exists."
+  if (raw.includes("lb_profiles_mobile") || raw.includes("mobile_normalized") || raw.includes("duplicate key"))
+    return "This contact number is already in use."
   if (raw.includes("password") && (raw.includes("at least") || raw.includes("weak")))
     return "Password is too weak — use at least 8 characters with letters and numbers."
   if (raw.includes("rate limit") || raw.includes("too many"))

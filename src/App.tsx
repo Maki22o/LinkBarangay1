@@ -243,8 +243,9 @@ function Root() {
           <QueueListPage
             kicker="FRONT DESK"
             title="Document Verification"
-            subtitle="Requests being verified and awaiting information."
-            statuses={["for_verification", "needs_information"]}
+            subtitle="Documents & permits awaiting review, verification, or additional information."
+            statuses={["submitted", "for_verification", "needs_information"]}
+            categorySlug="documents-permits"
             setView={setView}
             openRequest={openRequest}
           />

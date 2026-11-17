@@ -64,7 +64,7 @@ export async function listRequests(profile: Profile, filters: RequestListFilters
        location_latitude, location_longitude, location_details,
        category_id, department_id, barangay_id, submitted_by, assigned_to, priority_rank,
        due_at, created_at, updated_at, escalation_count,
-       category:lb_service_categories(id, name),
+       category:lb_service_categories(id, name, slug),
        department:lb_departments(id, name),
        barangay:lb_barangays(id, name)`,
       { count: "exact" },

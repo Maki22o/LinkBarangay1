@@ -103,6 +103,7 @@ export function RequestDetailPage({
   const role = profile?.role
   const isOwner = profile?.id && request.submitted_by === profile.id
   const stage = STAGE_INDEX[request.status] ?? 0
+  const terminallyResolved = ["resolved", "closed"].includes(request.status)
 
   const run = async (label: string, fn: () => Promise<unknown>) => {
     setBusy(true)
@@ -183,12 +184,16 @@ export function RequestDetailPage({
               </div>
             </div>
             <div className="horizontal-timeline">
-              {STAGES.map((label, index) => (
-                <div className={index <= stage ? "done" : ""} key={label}>
-                  <i>{index < stage ? <Icon name="check" size={12} /> : null}</i>
+              {STAGES.map((label, index) => {
+                const completed = index < stage || (terminallyResolved && index === STAGES.length - 1)
+                const active = index === stage && !completed
+                return (
+                <div className={completed ? "done" : active ? "active" : ""} key={label}>
+                  <i>{completed ? <Icon name="check" size={12} /> : null}</i>
                   <b>{label}</b>
                 </div>
-              ))}
+                )
+              })}
             </div>
             {request.status === "rejected" && (
               <div className="history-list">

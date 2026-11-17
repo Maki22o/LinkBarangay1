@@ -7,7 +7,7 @@ import { useEffect, useState } from "react"
 import { Icon } from "@/components/common/Icon"
 import { Button, Logo, Status } from "@/components/common/ui"
 import { Modal } from "@/components/common/Modal"
-import { Field, TextInput, TextArea, Select } from "@/components/forms/fields"
+import { Field, PasswordInput, TextInput, TextArea, Select } from "@/components/forms/fields"
 import { Notice } from "@/components/common/States"
 import {
   requestPasswordReset,
@@ -234,10 +234,10 @@ export function SetPasswordScreen({
           </div>
           <form className="auth-form" onSubmit={(event) => void submit(event)}>
             <Field label="New password" required>
-              <TextInput type="password" value={password} onChange={setPassword} required />
+              <PasswordInput value={password} onChange={setPassword} required />
             </Field>
             <Field label="Confirm password" required>
-              <TextInput type="password" value={confirmPassword} onChange={setConfirmPassword} required />
+              <PasswordInput value={confirmPassword} onChange={setConfirmPassword} required />
             </Field>
             {error && <Notice tone="error">{error}</Notice>}
             <Button type="submit" className="full-width" disabled={busy}>
@@ -326,8 +326,7 @@ function LoginForm({ navigate }: { navigate: (view: ViewId) => void }) {
           />
         </Field>
         <Field label="Password" required>
-          <TextInput
-            type="password"
+          <PasswordInput
             value={password}
             onChange={setPassword}
             placeholder="Enter your password"
@@ -483,8 +482,7 @@ function RegisterForm({
             />
           </Field>
           <Field label="Create password" hint="At least 8 characters" required>
-            <TextInput
-              type="password"
+            <PasswordInput
               value={password}
               onChange={setPassword}
               placeholder="At least 8 characters"

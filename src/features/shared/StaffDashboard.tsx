@@ -131,14 +131,14 @@ export function StaffDashboard({
         )}
       </div>
 
-      <div className="metrics-grid">
+      <div className={`metrics-grid${role === "barangay_staff" ? " staff-metrics-grid" : ""}`}>
         {metrics.map((metric) => (
           <MetricCard key={metric.label} {...metric} />
         ))}
       </div>
 
-      <div className="dashboard-grid">
-        <section className="panel span-two">
+      <div className={`dashboard-grid${role === "barangay_staff" ? " staff-dashboard-grid" : ""}`}>
+        <section className={`panel span-two${role === "barangay_staff" ? " staff-workflow-panel" : ""}`}>
           <div className="panel-head">
             <div>
               <h2>{slice.title}</h2>
@@ -210,7 +210,7 @@ export function StaffDashboard({
           )}
         </section>
 
-        <section className="panel activity-panel">
+        <section className={`panel activity-panel${role === "barangay_staff" ? " staff-personnel-panel" : ""}`}>
           <div className="panel-head">
             <div>
               <h2>{role === "barangay_staff" ? "Barangay personnel" : role === "dispatcher" ? "Field team" : "Operations team"}</h2>

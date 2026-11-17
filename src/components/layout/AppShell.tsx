@@ -11,6 +11,7 @@ import type { ReactNode } from "react"
 import { Icon } from "@/components/common/Icon"
 import { Logo, initials } from "@/components/common/ui"
 import { ConfirmDialog } from "@/components/common/Modal"
+import { SupportRequestModal } from "@/features/shared/SupportRequestModal"
 import { useAuth } from "@/hooks/useAuth"
 import { useNotifications } from "@/hooks/useNotifications"
 import { navForProfile, scopeLabelFor } from "@/permissions/permissions"
@@ -34,6 +35,7 @@ export function AppShell({
   const [mobileOpen, setMobileOpen] = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [supportOpen, setSupportOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
 
   if (!profile) return null
@@ -83,14 +85,14 @@ export function AppShell({
             </div>
           ))}
         </nav>
-        <div className="sidebar-help">
+        <button className="sidebar-help" onClick={() => setSupportOpen(true)}>
           <Icon name="help" />
           <div>
             <strong>Need assistance?</strong>
             <span>Visit the help center</span>
           </div>
           <Icon name="chevron" size={16} />
-        </div>
+        </button>
         <div className="sidebar-user">
           <span>{initials(profile.full_name || profile.email || "U")}</span>
           <div>
@@ -215,6 +217,7 @@ export function AppShell({
           onConfirm={() => void signOut()}
         />
       )}
+      {supportOpen && <SupportRequestModal onClose={() => setSupportOpen(false)} />}
     </div>
   )
 }
