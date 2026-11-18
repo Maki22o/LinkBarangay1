@@ -48,6 +48,17 @@ const STAGE_INDEX: Record<string, number> = {
 }
 const STAGES = ["Submitted", "Verified", "Assigned", "In progress", "Inspection", "Resolved"]
 
+function nextStepFor(status: string) {
+  if (status === "submitted" || status === "for_verification") return "Barangay staff will check the concern and supporting information."
+  if (status === "needs_information") return "Please send the information requested by the barangay so review can continue."
+  if (status === "verified") return "The request is ready to be routed or scheduled with the responsible team."
+  if (status === "assigned" || status === "in_progress") return "The assigned team is working on the concern. Check this page for progress updates."
+  if (status === "for_inspection") return "Barangay staff will inspect the completed work before closing the request."
+  if (status === "resolved" || status === "closed") return "The request has reached its final outcome. You may review the activity history below."
+  if (status === "rejected") return "Review the rejection details below. You may contact the barangay for clarification."
+  return "Follow this page for the next verified update from the barangay."
+}
+
 export function RequestDetailPage({
   requestId,
   setView,
@@ -220,6 +231,10 @@ export function RequestDetailPage({
                 </div>
               </div>
             )}
+            <div className="next-step-note">
+              <Icon name="arrow" size={16} />
+              <div><strong>What happens next?</strong><p>{nextStepFor(request.status)}</p></div>
+            </div>
           </section>
 
           <section className="panel">

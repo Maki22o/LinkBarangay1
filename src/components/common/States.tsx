@@ -8,7 +8,7 @@ import { Icon } from "@/components/common/Icon"
 export function LoadingState({ label = "Loading…" }: { label?: string }) {
   return (
     <div className="state-block" role="status">
-      <span className="spinner" />
+      <div className="loading-lines" aria-hidden="true"><i /><i /><i /></div>
       <p>{label}</p>
     </div>
   )

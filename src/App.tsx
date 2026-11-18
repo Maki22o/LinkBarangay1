@@ -56,7 +56,7 @@ import {
 import { canAccessView } from "@/permissions/permissions"
 import { listBarangayStaff } from "@/services/profileService"
 import { useAsync } from "@/hooks/useAsync"
-import { Status, formatDate } from "@/components/common/ui"
+import { Logo, Status, formatDate } from "@/components/common/ui"
 import { profileRoleLabel } from "@/types"
 import type { ViewId } from "@/types"
 
@@ -86,8 +86,12 @@ function Root() {
 
   if (initializing || (session && !profile && !sessionNotice)) {
     return (
-      <div className="boot-screen">
-        <LoadingState label="Loading LinkBarangay…" />
+      <div className="boot-screen" role="status" aria-live="polite">
+        <div className="boot-card">
+          <Logo />
+          <div className="boot-loader" aria-hidden="true"><i /><i /><i /></div>
+          <p>Preparing your service portal…</p>
+        </div>
       </div>
     )
   }
@@ -346,7 +350,7 @@ function Root() {
 
   return (
     <AppShell view={activeView} setView={setView} onSearchRequests={searchRequests}>
-      {renderView()}
+      <div className="page-view" key={activeView}>{renderView()}</div>
     </AppShell>
   )
 }

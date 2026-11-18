@@ -38,29 +38,38 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
     const term = categorySearch.trim().toLowerCase()
     return !term || `${item.name} ${item.description}`.toLowerCase().includes(term)
   })
-  const steps = ["Choose service", "Describe & locate", "Review & submit"]
+  const steps = ["Select concern", "Set location", "Upload proof", "Review & submit", "Follow status"]
 
   if (created) {
     return (
-      <div className="success-state">
-        <span>
-          <Icon name="check" size={30} />
-        </span>
-        <h1>Request submitted!</h1>
-        <p>
-          Your concern is now in the barangay verification queue. Keep your reference number to
-          track progress — updates will appear under My Requests and in your notifications.
-        </p>
-        <div className="reference-box">
-          <small>REFERENCE NUMBER</small>
+      <div className="submission-receipt">
+        <header className="receipt-hero">
+          <span className="receipt-success"><Icon name="check" size={26} /></span>
+          <div>
+            <span className="page-kicker">REQUEST RECEIVED</span>
+            <h1>Your request was submitted</h1>
+            <p>Barangay staff will review your concern. We’ll show all updates in My Requests and Notifications.</p>
+          </div>
+        </header>
+        <section className="receipt-reference">
+          <span>TRACKING REFERENCE</span>
           <strong>{created.reference}</strong>
-        </div>
-        {preferredAt && <p>Appointment requested for {manilaDateTime(preferredAt)} (Philippine time). Awaiting confirmation.</p>}
-        <div>
-          <Button variant="secondary" onClick={() => setView("requests")}>
-            View my requests
-          </Button>
-          <Button onClick={() => setView("dashboard")}>Back to dashboard</Button>
+          <small>Keep this reference number for follow-up.</small>
+        </section>
+        <section className="receipt-details">
+          <div><span>Concern</span><strong>{isCustom ? "Custom Request" : category?.name ?? "—"}</strong></div>
+          <div><span>Submitted</span><strong>{manilaDateTime(created.created_at)}</strong></div>
+          <div><span>Current status</span><strong>Submitted for review</strong></div>
+          <div><span>Service target</span><strong>{category?.sla_hours ? `${category.sla_hours} hours` : "Standard SLA"}</strong></div>
+          {preferredAt && <div className="wide"><span>Appointment request</span><strong>{manilaDateTime(preferredAt)} (Philippine time) · awaiting confirmation</strong></div>}
+        </section>
+        <section className="receipt-next">
+          <Icon name="history" size={18} />
+          <div><strong>What happens next?</strong><p>Staff verifies the request, then routes it to the appropriate team when action is needed.</p></div>
+        </section>
+        <div className="receipt-actions">
+          <Button variant="secondary" onClick={() => setView("dashboard")}>Back to dashboard</Button>
+          <Button onClick={() => setView("requests")}>Track request</Button>
         </div>
       </div>
     )
@@ -136,9 +145,9 @@ export function SubmitRequestPage({ setView }: { setView: (view: ViewId) => void
         </div>
       </div>
 
-      <div className="stepper">
+      <div className="stepper" aria-label="Request submission steps">
         {steps.map((label, index) => (
-          <div className={step >= index + 1 ? "active" : ""} key={label}>
+          <div className={index + 1 < (step === 1 ? 1 : step === 2 ? 3 : 4) ? "done" : index + 1 === (step === 1 ? 1 : step === 2 ? 3 : 4) ? "active" : ""} key={label}>
             <span>{index + 1}</span>
             <b>{label}</b>
             <i />
