@@ -89,8 +89,12 @@ export async function signOut() {
 }
 
 export async function requestPasswordReset(email: string) {
-  const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-    redirectTo: window.location.origin,
-  })
+  const { error } = await supabase.auth.resetPasswordForEmail(
+    email.trim().toLowerCase(),
+    {
+      redirectTo: "https://link-barangay1.vercel.app",
+    }
+  )
+
   if (error) throw new Error(mapAuthError(error))
 }
