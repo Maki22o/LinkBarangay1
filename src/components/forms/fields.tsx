@@ -135,11 +135,11 @@ export function Select({
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
     >
-      {options.map((option) => (
-        <option value={option.value} key={option.value}>
-          {option.label}
-        </option>
-      ))}
+     {options.map((option, index) => (
+  <option value={option.value} key={`${option.value}-${index}`}>
+    {option.label}
+  </option>
+))}
     </select>
   )
 }

@@ -6,6 +6,7 @@ import { useEffect } from "react"
 import type { ReactNode } from "react"
 import { Icon } from "@/components/common/Icon"
 import { Button } from "@/components/common/ui"
+import { createPortal } from "react-dom"
 
 export function Modal({
   title,
@@ -26,7 +27,7 @@ export function Modal({
     return () => document.removeEventListener("keydown", onKey)
   }, [onClose])
 
-  return (
+return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className={`modal-card ${wide ? "modal-wide" : ""}`}
@@ -42,7 +43,8 @@ export function Modal({
         </div>
         <div className="modal-body">{children}</div>
       </div>
-    </div>
+      </div>,
+    document.body
   )
 }
 

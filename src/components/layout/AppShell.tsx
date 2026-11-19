@@ -19,6 +19,7 @@ import { navForProfile, scopeLabelFor } from "@/permissions/permissions"
 import { notificationBadge } from "@/lib/notificationNavigation"
 import { profileRoleLabel } from "@/types"
 import type { ViewId } from "@/types"
+import "./notification-dropdown.css"
 
 export function AppShell({
   view,
@@ -32,7 +33,8 @@ export function AppShell({
   children: ReactNode
 }) {
   const { profile, signOut } = useAuth()
-  const { unreadCount } = useNotifications()
+ const { unreadCount, notifications } = useNotifications()
+const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -186,14 +188,50 @@ export function AppShell({
                 </div>
               )}
             </div>
-            <button
-              className="notification-button"
-              onClick={() => setView("notifications")}
-              aria-label={unreadLabel}
-            >
-              <Icon name="bell" />
-              {badge && <i aria-hidden="true">{badge}</i>}
-            </button>
+            <div className="notification-wrapper">
+  <button
+    className="notification-button"
+    onClick={() => setNotificationsOpen(!notificationsOpen)}
+    aria-label={unreadLabel}
+    aria-expanded={notificationsOpen}
+  >
+    <Icon name="bell" />
+    {badge && <i aria-hidden="true">{badge}</i>}
+  </button>
+
+  {notificationsOpen && (
+    <div className="notification-dropdown">
+      <div className="notification-dropdown-header">
+        <strong>Notifications</strong>
+        <small>{unreadCount} unread</small>
+      </div>
+
+      {notifications.length === 0 ? (
+        <p>No notifications yet.</p>
+      ) : (
+        notifications.slice(0, 5).map((item) => (
+          <div
+            key={item.id}
+            className={`notification-preview ${!item.is_read ? "unread" : ""}`}
+          >
+            <strong>{item.title}</strong>
+            <p>{item.message}</p>
+          </div>
+        ))
+      )}
+
+      <button
+        className="notification-view-all"
+        onClick={() => {
+          setView("notifications")
+          setNotificationsOpen(false)
+        }}
+      >
+        View all notifications
+      </button>
+    </div>
+  )}
+</div>
           </div>
         </header>
         <main className="app-content">{children}</main>
